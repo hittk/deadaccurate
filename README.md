@@ -9,8 +9,24 @@ signature from background noise.
 
 ## Status
 
-**Planning.** This branch contains the requirements, architecture, and
-milestone plan. No application code exists yet.
+**M0 — scaffold.** The planning docs below are complete and the project
+skeleton builds: `:app` (Compose) and `:engine` (NDK/CMake) compile to a
+debug APK, the JNI seam is proven by a native version smoke call, and the
+host-side C++ core tests pass. Measurement functionality starts landing
+in M1.
+
+### Building
+
+```sh
+./gradlew assembleDebug          # Android app (needs SDK + NDK)
+./gradlew testDebugUnitTest      # JVM unit tests
+./gradlew detekt                 # Kotlin static analysis
+
+# Host C++ core tests (no Android SDK needed):
+cmake -S engine/host -B engine/host/build
+cmake --build engine/host/build
+ctest --test-dir engine/host/build --output-on-failure
+```
 
 ## Documents
 

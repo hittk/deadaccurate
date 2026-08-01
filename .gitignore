@@ -1,0 +1,16 @@
+# Gradle
+.gradle/
+build/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.kotlin/
+
+# Native build output
+.cxx/
+engine/host/build/
+
+# OS
+.DS_Store

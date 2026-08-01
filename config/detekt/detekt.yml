@@ -1,0 +1,8 @@
+# Project overrides on top of detekt's defaults (buildUponDefaultConfig).
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+
+style:
+  MagicNumber:
+    ignoreAnnotated: ['Composable']
