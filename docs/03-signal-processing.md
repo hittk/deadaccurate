@@ -35,9 +35,12 @@ sub-pulse timing, which is why the stage boundary sits here.)
 Purpose: hard-isolate tick bursts so the onset detector never sees room noise.
 
 - **Floor estimation:** on session start and on recalibrate, track the
-  envelope for ~1 s and take a high percentile (e.g. 95th) of it as the noise
-  floor `N`. Percentile-over-window is robust against a stray tick landing in
-  the calibration window.
+  envelope for ~1 s and take its **median** as the noise floor `N`. The
+  watch is usually already ticking during calibration; tick bursts plus
+  their release tails elevate the envelope for ~20% of the window, so a
+  high percentile would land inside the tick energy and push the threshold
+  above the ticks themselves — the median stays on the ambient floor for
+  any contamination under 50%.
 - **Thresholds:** open at `N + margin + trim`, close at ~6 dB below the open
   threshold (hysteresis). `margin` defaults to ~12 dB; `trim` is the user
   slider, roughly ±15 dB.
@@ -60,7 +63,7 @@ can show exactly what the gate is doing.
   refinement doesn't.
 - **Refractory period:** after an onset, ignore further onsets for 60% of the
   current candidate beat period (falls back to 60% of the fastest standard
-  period — 36000 bph ≈ 16.7 ms... i.e. refractory ≈ 10 ms — until a candidate
+  period — 36000 bph = 100 ms, i.e. refractory 60 ms — until a candidate
   exists). This suppresses double-triggers from a tick's internal pulses that
   outlast the gate hold.
 - Output: onset frame indices, converted downstream to microseconds on the
@@ -85,8 +88,9 @@ can show exactly what the gate is doing.
 ## 6. Rate estimation (s/day)
 
 With a locked (or overridden) beat rate, the ideal beat period `T` is known
-(e.g. 28800 bph → 250 ms... 3600·24/28800 = 3.0 s of daily drift per 104 µs
-of period error — hence the precision obsession below).
+(e.g. 28800 bph → 125 ms). At 28800 bph a watch beats 691 200 times a day,
+so every 1 µs of average period error is ~0.7 s/day of drift — hence the
+precision obsession below.
 
 - For each accepted onset `t_i`, assign the nearest ideal grid index
   `k_i = round((t_i − t_0) / T)` and record phase deviation

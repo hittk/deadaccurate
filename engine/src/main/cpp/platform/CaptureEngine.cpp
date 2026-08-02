@@ -3,12 +3,11 @@
 #include <chrono>
 #include <vector>
 
-#include "deadaccurate/LevelAnalyzer.h"
+#include "deadaccurate/DspChain.h"
 
 namespace deadaccurate {
 namespace {
 
-constexpr int kLevelFramesPerSecond = 30;
 constexpr auto kIdlePollInterval = std::chrono::milliseconds(2);
 constexpr int32_t kErrorAlreadyRunning = -1000;
 
@@ -117,9 +116,15 @@ size_t CaptureEngine::DrainEvents(Event* out, size_t maxCount) {
 }
 
 void CaptureEngine::DspLoop() {
-    LevelAnalyzer analyzer(static_cast<size_t>(sampleRate_ / kLevelFramesPerSecond));
+    DspChain chain(sampleRate_);
+    DspChain::Output output;
     std::vector<float> scratch(1024);
-    std::vector<LevelAnalyzer::Level> levels;
+
+    float appliedTrimDb = gateTrimDb_.load();
+    int appliedBph = bph_.load();
+    chain.SetGateTrimDb(appliedTrimDb);
+    chain.SetBeatRateBph(appliedBph);
+    int64_t previousTickFrame = -1;
 
     events_.Push(MakeStatusEvent(EngineState::kRunning, sampleRate_, unprocessed_,
                                  exclusive_, deviceId_, 0));
@@ -130,15 +135,39 @@ void CaptureEngine::DspLoop() {
                                          unprocessed_, exclusive_, deviceId_,
                                          AAUDIO_ERROR_DISCONNECTED));
         }
+
+        const float trimDb = gateTrimDb_.load();
+        if (trimDb != appliedTrimDb) {
+            appliedTrimDb = trimDb;
+            chain.SetGateTrimDb(trimDb);
+        }
+        const int bph = bph_.load();
+        if (bph != appliedBph) {
+            appliedBph = bph;
+            chain.SetBeatRateBph(bph);
+        }
+        if (recalibrateRequested_.exchange(false)) {
+            chain.RecalibrateGate();
+        }
+
         const size_t n = ringBuffer_.Read(scratch.data(), scratch.size());
         if (n == 0) {
             std::this_thread::sleep_for(kIdlePollInterval);
             continue;
         }
-        levels.clear();
-        analyzer.Push(scratch.data(), n, levels);
-        for (const auto& level : levels) {
-            events_.Push(MakeLevelEvent(level.rmsDb, level.peakDb));
+
+        chain.Process(scratch.data(), n, output);
+        for (const auto& level : output.levels) {
+            events_.Push(MakeLevelEvent(level.rmsDb, level.peakDb, level.thresholdDb,
+                                        level.gateOpen, level.calibrating));
+        }
+        for (const auto& tick : output.ticks) {
+            const float deltaFrames =
+                previousTickFrame < 0
+                    ? 0.0f
+                    : static_cast<float>(tick.frameIndex - previousTickFrame);
+            previousTickFrame = tick.frameIndex;
+            events_.Push(MakeTickEvent(deltaFrames, tick.peakDb));
         }
     }
 }

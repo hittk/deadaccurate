@@ -3,6 +3,11 @@ naming:
   FunctionNaming:
     ignoreAnnotated: ['Composable']
 
+complexity:
+  TooManyFunctions:
+    # Intent-handler ViewModels aggregate many small public functions.
+    thresholdInClasses: 16
+
 style:
   MagicNumber:
     ignoreAnnotated: ['Composable']

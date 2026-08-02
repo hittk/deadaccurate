@@ -37,6 +37,30 @@ class AudioEngine {
         }
     }
 
+    /** Gate trim around the calibrated threshold, in dB (FR-3). */
+    fun setGateTrimDb(trimDb: Float) {
+        ensureHandle()
+        NativeEngine.nativeSetGateTrimDb(handle, trimDb)
+    }
+
+    /** Re-measures the ambient noise floor (FR-3). */
+    fun recalibrateGate() {
+        ensureHandle()
+        NativeEngine.nativeRecalibrateGate(handle)
+    }
+
+    /** Active beat rate; drives the tick detector's refractory period. */
+    fun setBeatRateBph(bph: Int) {
+        ensureHandle()
+        NativeEngine.nativeSetBeatRateBph(handle, bph)
+    }
+
+    private fun ensureHandle() {
+        if (handle == 0L) {
+            handle = NativeEngine.nativeCreate()
+        }
+    }
+
     fun release() {
         if (handle != 0L) {
             NativeEngine.nativeStop(handle)

@@ -11,9 +11,12 @@ namespace deadaccurate {
 inline constexpr size_t kEventFloats = 8;
 
 enum class EventType : int {
-    kLevel = 1,   // v[1]=rmsDb, v[2]=peakDb
+    kLevel = 1,   // v[1]=rmsDb, v[2]=peakDb, v[3]=gateThresholdDb,
+                  // v[4]=gateOpen, v[5]=calibrating
     kStatus = 2,  // v[1]=EngineState, v[2]=sampleRate, v[3]=unprocessed,
                   // v[4]=exclusive, v[5]=deviceId, v[6]=errorCode
+    kTick = 3,    // v[1]=deltaFrames since previous tick (0 for the first),
+                  // v[2]=peakDb
 };
 
 enum class EngineState : int {
@@ -27,10 +30,25 @@ struct Event {
     float v[kEventFloats];
 };
 
-inline Event MakeLevelEvent(float rmsDb, float peakDb) {
+inline Event MakeLevelEvent(float rmsDb, float peakDb, float gateThresholdDb,
+                            bool gateOpen, bool calibrating) {
     Event e{};
     e.v[0] = static_cast<float>(EventType::kLevel);
     e.v[1] = rmsDb;
+    e.v[2] = peakDb;
+    e.v[3] = gateThresholdDb;
+    e.v[4] = gateOpen ? 1.0f : 0.0f;
+    e.v[5] = calibrating ? 1.0f : 0.0f;
+    return e;
+}
+
+// Tick timestamps cross the seam as deltas because a float cannot hold large
+// absolute frame indices exactly; the Kotlin side accumulates them in a
+// Double.
+inline Event MakeTickEvent(float deltaFrames, float peakDb) {
+    Event e{};
+    e.v[0] = static_cast<float>(EventType::kTick);
+    e.v[1] = deltaFrames;
     e.v[2] = peakDb;
     return e;
 }

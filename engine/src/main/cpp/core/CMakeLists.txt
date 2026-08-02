@@ -7,6 +7,10 @@ project(deadaccurate_core LANGUAGES CXX)
 add_library(deadaccurate_core STATIC
     src/Version.cpp
     src/LevelAnalyzer.cpp
+    src/Biquad.cpp
+    src/NoiseGate.cpp
+    src/TickDetector.cpp
+    src/DspChain.cpp
 )
 
 target_include_directories(deadaccurate_core PUBLIC include)

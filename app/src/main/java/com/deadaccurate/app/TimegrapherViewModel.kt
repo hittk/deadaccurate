@@ -6,6 +6,7 @@ import androidx.core.content.getSystemService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.deadaccurate.app.audio.AudioInputMonitor
+import com.deadaccurate.app.trace.TraceComputer
 import com.deadaccurate.engine.AudioEngine
 import com.deadaccurate.engine.EngineEvent
 import com.deadaccurate.engine.EngineState
@@ -27,6 +28,13 @@ data class TimegrapherUiState(
     val capturing: Boolean = false,
     val rmsDb: Float = SILENCE_DB,
     val peakDb: Float = SILENCE_DB,
+    val gateThresholdDb: Float? = null,
+    val gateOpen: Boolean = false,
+    val calibrating: Boolean = false,
+    val gateTrimDb: Float = 0f,
+    val bph: Int = DEFAULT_BPH,
+    val tracePoints: List<Float> = emptyList(),
+    val traceHalfRangeMs: Float = DEFAULT_HALF_RANGE_MS,
     val wiredInputName: String? = null,
     val inputLost: Boolean = false,
     val unprocessedSupported: Boolean = true,
@@ -35,6 +43,10 @@ data class TimegrapherUiState(
 ) {
     companion object {
         const val SILENCE_DB = -120f
+        const val DEFAULT_BPH = 28800
+        const val DEFAULT_HALF_RANGE_MS = 62.5f
+        val STANDARD_RATES = listOf(18000, 19800, 21600, 25200, 28800, 36000)
+        const val TRACE_CAPACITY = 480
     }
 }
 
@@ -50,6 +62,8 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
     val uiState: StateFlow<TimegrapherUiState> = _uiState
 
     private var eventJob: Job? = null
+    private var traceComputer: TraceComputer? = null
+    private val traceBuffer = ArrayDeque<Float>()
 
     init {
         viewModelScope.launch {
@@ -73,6 +87,21 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         _uiState.update { it.copy(inputLost = false) }
     }
 
+    fun setBph(bph: Int) {
+        engine.setBeatRateBph(bph)
+        _uiState.update { it.copy(bph = bph) }
+        resetTrace()
+    }
+
+    fun setGateTrimDb(trimDb: Float) {
+        engine.setGateTrimDb(trimDb)
+        _uiState.update { it.copy(gateTrimDb = trimDb) }
+    }
+
+    fun recalibrateGate() {
+        engine.recalibrateGate()
+    }
+
     private fun startCapture() {
         val deviceId = inputMonitor.wiredInput.value?.id ?: SYSTEM_DEFAULT_DEVICE
         val preset =
@@ -81,6 +110,10 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
             } else {
                 InputPreset.VOICE_RECOGNITION
             }
+
+        // The DSP chain reads these when its thread spins up.
+        engine.setBeatRateBph(_uiState.value.bph)
+        engine.setGateTrimDb(_uiState.value.gateTrimDb)
 
         val result = engine.start(deviceId, preset)
         if (result != 0) {
@@ -105,6 +138,9 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 capturing = false,
                 rmsDb = TimegrapherUiState.SILENCE_DB,
                 peakDb = TimegrapherUiState.SILENCE_DB,
+                gateThresholdDb = null,
+                gateOpen = false,
+                calibrating = false,
                 streamInfo = null,
             )
         }
@@ -112,18 +148,30 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
 
     private fun onEngineEvent(event: EngineEvent) {
         when (event) {
-            is EngineEvent.Level ->
-                _uiState.update { it.copy(rmsDb = event.rmsDb, peakDb = event.peakDb) }
+            is EngineEvent.Level -> _uiState.update {
+                it.copy(
+                    rmsDb = event.rmsDb,
+                    peakDb = event.peakDb,
+                    gateThresholdDb = event.gateThresholdDb,
+                    gateOpen = event.gateOpen,
+                    calibrating = event.calibrating,
+                )
+            }
+
+            is EngineEvent.Tick -> onTick(event)
 
             is EngineEvent.Status -> when (event.state) {
-                EngineState.RUNNING -> _uiState.update {
-                    it.copy(
-                        streamInfo = StreamInfo(
-                            sampleRate = event.sampleRate,
-                            unprocessed = event.unprocessed,
-                            exclusiveMode = event.exclusiveMode,
-                        ),
-                    )
+                EngineState.RUNNING -> {
+                    _uiState.update {
+                        it.copy(
+                            streamInfo = StreamInfo(
+                                sampleRate = event.sampleRate,
+                                unprocessed = event.unprocessed,
+                                exclusiveMode = event.exclusiveMode,
+                            ),
+                        )
+                    }
+                    resetTrace(sampleRate = event.sampleRate)
                 }
 
                 // FR-2: on input loss, stop and prompt instead of silently
@@ -135,6 +183,28 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
 
                 EngineState.IDLE, EngineState.ERROR -> Unit
             }
+        }
+    }
+
+    private fun onTick(tick: EngineEvent.Tick) {
+        val computer = traceComputer ?: return
+        traceBuffer.addLast(computer.addTick(tick.deltaFrames))
+        while (traceBuffer.size > TimegrapherUiState.TRACE_CAPACITY) {
+            traceBuffer.removeFirst()
+        }
+        _uiState.update { it.copy(tracePoints = traceBuffer.toList()) }
+    }
+
+    private fun resetTrace(sampleRate: Int? = null) {
+        val rate = sampleRate ?: _uiState.value.streamInfo?.sampleRate
+        traceComputer = rate?.let { TraceComputer(it, _uiState.value.bph) }
+        traceBuffer.clear()
+        _uiState.update {
+            it.copy(
+                tracePoints = emptyList(),
+                traceHalfRangeMs = traceComputer?.halfPeriodMs
+                    ?: TimegrapherUiState.DEFAULT_HALF_RANGE_MS,
+            )
         }
     }
 

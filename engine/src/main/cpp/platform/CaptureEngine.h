@@ -33,6 +33,12 @@ public:
 
     size_t DrainEvents(Event* out, size_t maxCount);
 
+    // Control surface (FR-3/FR-4). Safe to call from any thread, before or
+    // during capture; the DSP thread applies changes between blocks.
+    void SetGateTrimDb(float trimDb) { gateTrimDb_.store(trimDb); }
+    void RecalibrateGate() { recalibrateRequested_.store(true); }
+    void SetBeatRateBph(int bph) { bph_.store(bph); }
+
 private:
     static aaudio_data_callback_result_t DataCallback(AAudioStream* stream, void* userData,
                                                       void* audioData, int32_t numFrames);
@@ -53,6 +59,10 @@ private:
     // Set by the AAudio error callback (its own thread); the DSP thread — the
     // queue's only producer — notices and emits the status event.
     std::atomic<bool> disconnected_{false};
+
+    std::atomic<float> gateTrimDb_{0.0f};
+    std::atomic<int> bph_{0};
+    std::atomic<bool> recalibrateRequested_{false};
 
     int32_t sampleRate_ = 0;
     int32_t deviceId_ = 0;

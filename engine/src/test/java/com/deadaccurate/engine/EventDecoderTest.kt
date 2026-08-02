@@ -11,10 +11,29 @@ class EventDecoderTest {
 
     @Test
     fun decodesLevelEvent() {
-        val buffer = record(1f, -42.5f, -30.25f)
+        val buffer = record(1f, -42.5f, -30.25f, -48f, 1f, 0f)
         val events = EventDecoder.decode(buffer, 1)
 
-        assertEquals(listOf(EngineEvent.Level(rmsDb = -42.5f, peakDb = -30.25f)), events)
+        assertEquals(
+            listOf(
+                EngineEvent.Level(
+                    rmsDb = -42.5f,
+                    peakDb = -30.25f,
+                    gateThresholdDb = -48f,
+                    gateOpen = true,
+                    calibrating = false,
+                ),
+            ),
+            events,
+        )
+    }
+
+    @Test
+    fun decodesTickEvent() {
+        val buffer = record(3f, 6000f, -20f)
+        val events = EventDecoder.decode(buffer, 1)
+
+        assertEquals(listOf(EngineEvent.Tick(deltaFrames = 6000f, peakDb = -20f)), events)
     }
 
     @Test
@@ -39,7 +58,7 @@ class EventDecoderTest {
 
     @Test
     fun decodesMultipleRecordsInOrder() {
-        val level = record(1f, -50f, -40f)
+        val level = record(1f, -50f, -40f, -55f, 0f, 0f)
         val status = record(2f, 2f, 48000f, 1f, 1f, 22f, -899f)
         val buffer = level + status
         val events = EventDecoder.decode(buffer, 2)
@@ -54,16 +73,27 @@ class EventDecoderTest {
     @Test
     fun skipsUnknownEventTypes() {
         val unknown = record(99f, 1f, 2f)
-        val level = record(1f, -10f, -5f)
+        val level = record(1f, -10f, -5f, -55f, 0f, 0f)
         val events = EventDecoder.decode(unknown + level, 2)
 
-        assertEquals(listOf(EngineEvent.Level(rmsDb = -10f, peakDb = -5f)), events)
+        assertEquals(
+            listOf(
+                EngineEvent.Level(
+                    rmsDb = -10f,
+                    peakDb = -5f,
+                    gateThresholdDb = -55f,
+                    gateOpen = false,
+                    calibrating = false,
+                ),
+            ),
+            events,
+        )
     }
 
     @Test
     fun ignoresRecordsBeyondCount() {
-        val level = record(1f, -10f, -5f)
-        val stale = record(1f, -99f, -99f)
+        val level = record(1f, -10f, -5f, -55f, 0f, 0f)
+        val stale = record(1f, -99f, -99f, -99f, 0f, 0f)
         val events = EventDecoder.decode(level + stale, 1)
 
         assertEquals(1, events.size)

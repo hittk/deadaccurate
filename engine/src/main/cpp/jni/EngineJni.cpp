@@ -48,6 +48,27 @@ Java_com_deadaccurate_engine_NativeEngine_nativeDestroy(JNIEnv* /*env*/, jobject
     delete FromHandle(handle);
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_deadaccurate_engine_NativeEngine_nativeSetGateTrimDb(JNIEnv* /*env*/,
+                                                              jobject /*thiz*/, jlong handle,
+                                                              jfloat trimDb) {
+    FromHandle(handle)->SetGateTrimDb(trimDb);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_deadaccurate_engine_NativeEngine_nativeRecalibrateGate(JNIEnv* /*env*/,
+                                                                jobject /*thiz*/,
+                                                                jlong handle) {
+    FromHandle(handle)->RecalibrateGate();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_deadaccurate_engine_NativeEngine_nativeSetBeatRateBph(JNIEnv* /*env*/,
+                                                               jobject /*thiz*/, jlong handle,
+                                                               jint bph) {
+    FromHandle(handle)->SetBeatRateBph(bph);
+}
+
 extern "C" JNIEXPORT jint JNICALL
 Java_com_deadaccurate_engine_NativeEngine_nativeDrainEvents(JNIEnv* env, jobject /*thiz*/,
                                                             jlong handle,

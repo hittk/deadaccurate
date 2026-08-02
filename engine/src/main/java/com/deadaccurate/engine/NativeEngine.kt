@@ -24,6 +24,12 @@ internal object NativeEngine {
 
     external fun nativeDestroy(handle: Long)
 
+    external fun nativeSetGateTrimDb(handle: Long, trimDb: Float)
+
+    external fun nativeRecalibrateGate(handle: Long)
+
+    external fun nativeSetBeatRateBph(handle: Long, bph: Int)
+
     /**
      * Fills [out] with flat event records ([EventDecoder.EVENT_FLOATS] floats
      * each) and returns the number of events written.

@@ -15,6 +15,10 @@ add_executable(core_tests
     tests/SpscRingBufferTest.cpp
     tests/SpscEventQueueTest.cpp
     tests/LevelAnalyzerTest.cpp
+    tests/BiquadTest.cpp
+    tests/EnvelopeFollowerTest.cpp
+    tests/NoiseGateTest.cpp
+    tests/DspChainTest.cpp
     tests/VersionTest.cpp
     tests/TestMain.cpp
 )

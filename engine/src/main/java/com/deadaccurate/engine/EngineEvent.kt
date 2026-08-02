@@ -6,8 +6,24 @@ package com.deadaccurate.engine
  * in sync.
  */
 sealed interface EngineEvent {
-    /** Signal level of one analysis hop (~30 Hz while capturing). */
-    data class Level(val rmsDb: Float, val peakDb: Float) : EngineEvent
+    /**
+     * Signal level of one analysis hop (~30 Hz while capturing), measured on
+     * the post-filter envelope so it shares a scale with the gate threshold.
+     */
+    data class Level(
+        val rmsDb: Float,
+        val peakDb: Float,
+        val gateThresholdDb: Float,
+        val gateOpen: Boolean,
+        val calibrating: Boolean,
+    ) : EngineEvent
+
+    /**
+     * One detected tick. [deltaFrames] is the audio-clock distance to the
+     * previous tick (0 for the first of a session); accumulate in a Double
+     * for absolute time.
+     */
+    data class Tick(val deltaFrames: Float, val peakDb: Float) : EngineEvent
 
     /** Engine/stream state snapshot; emitted on every state change. */
     data class Status(
@@ -44,6 +60,7 @@ object EventDecoder {
 
     private const val TYPE_LEVEL = 1
     private const val TYPE_STATUS = 2
+    private const val TYPE_TICK = 3
 
     /** Decodes [count] records from [buffer] as filled by nativeDrainEvents. */
     fun decode(buffer: FloatArray, count: Int): List<EngineEvent> {
@@ -54,6 +71,15 @@ object EventDecoder {
                 TYPE_LEVEL -> events.add(
                     EngineEvent.Level(
                         rmsDb = buffer[base + 1],
+                        peakDb = buffer[base + 2],
+                        gateThresholdDb = buffer[base + 3],
+                        gateOpen = buffer[base + 4] != 0f,
+                        calibrating = buffer[base + 5] != 0f,
+                    ),
+                )
+                TYPE_TICK -> events.add(
+                    EngineEvent.Tick(
+                        deltaFrames = buffer[base + 1],
                         peakDb = buffer[base + 2],
                     ),
                 )

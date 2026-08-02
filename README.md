@@ -9,16 +9,19 @@ signature from background noise.
 
 ## Status
 
-**M1 — capture pipeline (code-complete).** The AAudio capture path is
-implemented end to end: unprocessed low-latency input (exclusive→shared
-fallback), wired-headset/piezo routing with disconnect handling, the
-lock-free ring buffer → DSP thread → event queue pipeline, the RECORD_AUDIO
-permission flow, and a live RMS/peak level meter with stream diagnostics in
-the UI. Builds, JVM tests, detekt, and host C++ tests are all green.
+**M2 — noise gate and beat trace (code-complete).** The full v1 signal
+chain now runs on the DSP thread: 2–12 kHz band-pass → envelope follower →
+auto-calibrating noise gate (median floor, hysteresis, hold, ±15 dB trim) →
+tick onset detection with a beat-rate-derived refractory period. Ticks
+stream to the UI as audio-clock deltas and render as the classic scrolling
+timegrapher tape against a manually selected beat rate; the level meter
+shows the gate threshold on the same scale. Golden host tests cover every
+DSP stage, including a synthetic 28800 bph watch detected through the whole
+chain and a pure-noise fixture producing zero ticks.
 
-Still pending for M1 sign-off (needs hardware, per docs/04-milestones.md):
-verifying the piezo-TRRS rig shows live level with the unprocessed preset
-confirmed, and that unplugging pauses with a prompt.
+Pending hardware verification (per docs/04-milestones.md): a real watch on
+the piezo rig drawing a recognizable trace. M3 (beat-rate auto-detect and
+the s/day readout) is next.
 
 ### Building
 

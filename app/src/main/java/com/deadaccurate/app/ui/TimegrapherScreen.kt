@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -48,12 +50,19 @@ fun TimegrapherScreen(viewModel: TimegrapherViewModel = viewModel()) {
         viewModel.onPermissionResult(granted)
     }
 
+    val actions = CaptureActions(
+        onToggleCapture = viewModel::toggleCapture,
+        onDismissInputLost = viewModel::dismissInputLost,
+        onSetBph = viewModel::setBph,
+        onSetGateTrim = viewModel::setGateTrimDb,
+        onRecalibrate = viewModel::recalibrateGate,
+    )
+
     Scaffold { innerPadding ->
         if (state.hasPermission) {
             CaptureContent(
                 state = state,
-                onToggleCapture = viewModel::toggleCapture,
-                onDismissInputLost = viewModel::dismissInputLost,
+                actions = actions,
                 modifier = Modifier.padding(innerPadding),
             )
         } else {
@@ -88,62 +97,87 @@ private fun PermissionRationale(onRequest: () -> Unit, modifier: Modifier = Modi
 @Composable
 private fun CaptureContent(
     state: TimegrapherUiState,
-    onToggleCapture: () -> Unit,
-    onDismissInputLost: () -> Unit,
+    actions: CaptureActions,
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.fillMaxSize().padding(24.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("DeadAccurate", style = MaterialTheme.typography.headlineMedium)
-
         InputChip(state.wiredInputName)
+        Notices(state, actions.onDismissInputLost)
 
-        if (state.inputLost) {
-            NoticeCard(
-                text = "Input lost — the wired microphone was disconnected. " +
-                    "Reconnect it and start again.",
-                actionLabel = "Dismiss",
-                onAction = onDismissInputLost,
-            )
-        }
-        if (!state.unprocessedSupported) {
-            NoticeCard(
-                text = "This device doesn't support fully unprocessed audio " +
-                    "input; using the voice-recognition source instead.",
-            )
-        }
-        state.startErrorCode?.let { code ->
-            NoticeCard(text = "Couldn't start audio capture (error $code).")
-        }
+        BeatTrace(points = state.tracePoints, halfRangeMs = state.traceHalfRangeMs)
+        RateSelector(selectedBph = state.bph, onSelect = actions.onSetBph)
 
-        LevelMeter(rmsDb = state.rmsDb, peakDb = state.peakDb)
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(
-                "RMS ${formatDb(state.rmsDb)}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                "Peak ${formatDb(state.peakDb)}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
+        MeterSection(state)
+        GateControls(
+            trimDb = state.gateTrimDb,
+            calibrating = state.calibrating,
+            onTrimChange = actions.onSetGateTrim,
+            onRecalibrate = actions.onRecalibrate,
+        )
 
-        Button(onClick = onToggleCapture, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = actions.onToggleCapture, modifier = Modifier.fillMaxWidth()) {
             Text(if (state.capturing) "Stop" else "Start listening")
         }
+        StreamInfoFooter(state)
+    }
+}
 
-        state.streamInfo?.let { info ->
-            Text(
-                listOfNotNull(
-                    "${info.sampleRate} Hz",
-                    if (info.unprocessed) "unprocessed" else "voice-recognition",
-                    if (info.exclusiveMode) "exclusive" else "shared",
-                ).joinToString(" • "),
-                style = MaterialTheme.typography.bodySmall,
-            )
+@Composable
+private fun Notices(state: TimegrapherUiState, onDismissInputLost: () -> Unit) {
+    if (state.inputLost) {
+        NoticeCard(
+            text = "Input lost — the wired microphone was disconnected. " +
+                "Reconnect it and start again.",
+            actionLabel = "Dismiss",
+            onAction = onDismissInputLost,
+        )
+    }
+    if (!state.unprocessedSupported) {
+        NoticeCard(
+            text = "This device doesn't support fully unprocessed audio " +
+                "input; using the voice-recognition source instead.",
+        )
+    }
+    state.startErrorCode?.let { code ->
+        NoticeCard(text = "Couldn't start audio capture (error $code).")
+    }
+}
+
+@Composable
+private fun MeterSection(state: TimegrapherUiState) {
+    LevelMeter(
+        rmsDb = state.rmsDb,
+        peakDb = state.peakDb,
+        thresholdDb = state.gateThresholdDb,
+        gateOpen = state.gateOpen,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("RMS ${formatDb(state.rmsDb)}", style = MaterialTheme.typography.bodyMedium)
+        Text("Peak ${formatDb(state.peakDb)}", style = MaterialTheme.typography.bodyMedium)
+        state.gateThresholdDb?.let {
+            Text("Gate ${formatDb(it)}", style = MaterialTheme.typography.bodyMedium)
         }
+    }
+}
+
+@Composable
+private fun StreamInfoFooter(state: TimegrapherUiState) {
+    state.streamInfo?.let { info ->
+        Text(
+            listOfNotNull(
+                "${info.sampleRate} Hz",
+                if (info.unprocessed) "unprocessed" else "voice-recognition",
+                if (info.exclusiveMode) "exclusive" else "shared",
+            ).joinToString(" • "),
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 

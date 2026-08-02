@@ -8,8 +8,8 @@ using deadaccurate::SpscEventQueue;
 
 TEST(SpscEventQueue, PushThenDrainPreservesOrder) {
     SpscEventQueue q(8);
-    EXPECT_TRUE(q.Push(MakeLevelEvent(-10.0f, -5.0f)));
-    EXPECT_TRUE(q.Push(MakeLevelEvent(-20.0f, -15.0f)));
+    EXPECT_TRUE(q.Push(MakeLevelEvent(-10.0f, -5.0f, -60.0f, false, false)));
+    EXPECT_TRUE(q.Push(MakeLevelEvent(-20.0f, -15.0f, -60.0f, false, false)));
 
     Event out[4];
     EXPECT_EQ(q.Drain(out, 4), 2u);
@@ -21,9 +21,9 @@ TEST(SpscEventQueue, PushThenDrainPreservesOrder) {
 TEST(SpscEventQueue, DropsWhenFullInsteadOfBlocking) {
     SpscEventQueue q(4);
     for (int i = 0; i < 4; ++i) {
-        EXPECT_TRUE(q.Push(MakeLevelEvent(static_cast<float>(i), 0.0f)));
+        EXPECT_TRUE(q.Push(MakeLevelEvent(static_cast<float>(i), 0.0f, -60.0f, false, false)));
     }
-    EXPECT_TRUE(!q.Push(MakeLevelEvent(99.0f, 0.0f)));
+    EXPECT_TRUE(!q.Push(MakeLevelEvent(99.0f, 0.0f, -60.0f, false, false)));
 
     Event out[8];
     EXPECT_EQ(q.Drain(out, 8), 4u);
@@ -34,7 +34,7 @@ TEST(SpscEventQueue, ReusableAfterWrapAround) {
     SpscEventQueue q(4);
     Event out[4];
     for (int cycle = 0; cycle < 10; ++cycle) {
-        EXPECT_TRUE(q.Push(MakeLevelEvent(static_cast<float>(cycle), 0.0f)));
+        EXPECT_TRUE(q.Push(MakeLevelEvent(static_cast<float>(cycle), 0.0f, -60.0f, false, false)));
         EXPECT_EQ(q.Drain(out, 4), 1u);
         EXPECT_EQ(out[0].v[1], static_cast<float>(cycle));
     }
