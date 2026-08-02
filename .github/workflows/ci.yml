@@ -1,8 +1,10 @@
 name: CI
 
+# The repo's default branch is currently the claude/* working branch, so CI
+# must fire there; main is included for when the project migrates to it.
 on:
   push:
-    branches: [main]
+    branches: [main, "claude/**"]
   pull_request:
 
 jobs:
