@@ -14,7 +14,8 @@ import com.deadaccurate.app.TimegrapherUiState
  */
 @Composable
 fun RateReadout(state: TimegrapherUiState, modifier: Modifier = Modifier) {
-    val valueText = if (state.rateValid) formatSecPerDay(state.secPerDay) else "—.— s/d"
+    val valueText =
+        if (state.rateValid) formatSecPerDay(state.correctedSecPerDay) else "—.— s/d"
     val valueColor =
         if (state.rateValid) {
             MaterialTheme.colorScheme.onSurface
@@ -43,13 +44,20 @@ fun RateReadout(state: TimegrapherUiState, modifier: Modifier = Modifier) {
     }
 }
 
-private fun statusLine(state: TimegrapherUiState): String = when {
-    !state.capturing && state.replayFileName == null -> "stopped"
-    state.bphOverride != null ->
-        "pinned ${state.bphOverride} bph • ${state.rateTickCount} ticks"
-    state.activeBph > 0 ->
-        "locked ${state.activeBph} bph • ${state.rateTickCount} ticks"
-    else -> "searching for beat rate…"
+private fun statusLine(state: TimegrapherUiState): String {
+    val base = when {
+        !state.capturing && state.replayFileName == null -> "stopped"
+        state.bphOverride != null ->
+            "pinned ${state.bphOverride} bph • ${state.rateTickCount} ticks"
+        state.activeBph > 0 ->
+            "locked ${state.activeBph} bph • ${state.rateTickCount} ticks"
+        else -> "searching for beat rate…"
+    }
+    return if (state.clockCalSecPerDay != 0f) {
+        "$base • cal %+.1f s/d".format(state.clockCalSecPerDay)
+    } else {
+        base
+    }
 }
 
 private fun formatSecPerDay(secPerDay: Float): String {

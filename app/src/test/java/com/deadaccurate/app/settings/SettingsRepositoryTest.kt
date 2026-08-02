@@ -51,6 +51,7 @@ class SettingsRepositoryTest {
         repository.setBphOverride(21600)
         repository.setInputPreference(InputPreference.BUILT_IN)
         repository.setOnboardingDismissed(true)
+        repository.setClockCalSecPerDay(-1.7f)
 
         assertEquals(
             UserSettings(
@@ -58,6 +59,7 @@ class SettingsRepositoryTest {
                 bphOverride = 21600,
                 inputPreference = InputPreference.BUILT_IN,
                 onboardingDismissed = true,
+                clockCalSecPerDay = -1.7f,
             ),
             repository.settings.first(),
         )

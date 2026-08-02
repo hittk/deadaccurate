@@ -14,4 +14,6 @@ data class CaptureActions(
     val onSetInputPreference: (InputPreference) -> Unit,
     val onDismissOnboarding: () -> Unit,
     val onReplayFile: (Uri) -> Unit,
+    /** Delta in s/day; 0 resets the calibration. */
+    val onAdjustClockCal: (Float) -> Unit,
 )

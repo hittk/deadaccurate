@@ -48,6 +48,9 @@ a reading without instructions beyond the onboarding hints.
    ±4% so out-of-beat movements still auto-lock.
 2. **Clock calibration factor** — settings flow to correct the crystal ppm
    against a reference; unlocks true absolute accuracy.
+   ✅ Shipped: a persisted s/day offset (the crystal's ppm error is a
+   constant s/day shift to first order), adjustable in 0.1 s/d steps with
+   reset, applied to the displayed rate and flagged in the status line.
 3. **Amplitude (°)** — sub-pulse detection on the raw band-passed signal +
    lift-angle input. Hardest; needs very clean signals.
 4. Session export/history.

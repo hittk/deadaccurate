@@ -47,7 +47,10 @@ data class TimegrapherUiState(
     val activeBph: Int = 0,
     val rateLocked: Boolean = false,
     val rateValid: Boolean = false,
+    /** Raw measurement against the device audio clock. */
     val secPerDay: Float = 0f,
+    /** User-measured correction for the audio crystal's ppm error. */
+    val clockCalSecPerDay: Float = 0f,
     val beatErrorMs: Float? = null,
     val rateTickCount: Int = 0,
     val tracePoints: List<TracePoint> = emptyList(),
@@ -64,6 +67,9 @@ data class TimegrapherUiState(
     val replayFileName: String? = null,
     val replayError: String? = null,
 ) {
+    /** What the readout shows: measurement plus the clock correction. */
+    val correctedSecPerDay: Float get() = secPerDay + clockCalSecPerDay
+
     companion object {
         const val SILENCE_DB = -120f
         const val DEFAULT_HALF_RANGE_MS = 62.5f
@@ -80,8 +86,13 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
     private val settingsRepository = SettingsRepository(application.settingsDataStore)
     private val replayAnalyzer = ReplayAnalyzer(application.contentResolver)
 
+    private val unprocessedSupported: Boolean =
+        audioManager.getProperty(
+            AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED,
+        ) == "true"
+
     private val _uiState = MutableStateFlow(
-        TimegrapherUiState(unprocessedSupported = unprocessedSourceSupported()),
+        TimegrapherUiState(unprocessedSupported = unprocessedSupported),
     )
     val uiState: StateFlow<TimegrapherUiState> = _uiState
 
@@ -112,6 +123,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 bphOverride = stored.bphOverride,
                 inputPreference = stored.inputPreference,
                 onboardingDismissed = stored.onboardingDismissed,
+                clockCalSecPerDay = stored.clockCalSecPerDay,
             )
         }
     }
@@ -160,6 +172,19 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
     fun dismissOnboarding() {
         _uiState.update { it.copy(onboardingDismissed = true) }
         viewModelScope.launch { settingsRepository.setOnboardingDismissed(true) }
+    }
+
+    /** Adjusts the clock calibration by [deltaSecPerDay]; 0 delta resets. */
+    fun adjustClockCal(deltaSecPerDay: Float) {
+        val value =
+            if (deltaSecPerDay == 0f) {
+                0f
+            } else {
+                (_uiState.value.clockCalSecPerDay + deltaSecPerDay)
+                    .coerceIn(-CLOCK_CAL_LIMIT, CLOCK_CAL_LIMIT)
+            }
+        _uiState.update { it.copy(clockCalSecPerDay = value) }
+        viewModelScope.launch { settingsRepository.setClockCalSecPerDay(value) }
     }
 
     fun recalibrateGate() {
@@ -380,11 +405,6 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    private fun unprocessedSourceSupported(): Boolean =
-        audioManager.getProperty(
-            AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED,
-        ) == "true"
-
     override fun onCleared() {
         engine.release()
         inputMonitor.release()
@@ -395,5 +415,8 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
 
         // ~5 s of 30 Hz level frames with no tick (architecture §6).
         const val NO_TICKS_LEVEL_FRAMES = 150
+
+        // Beyond ±10 s/day the crystal isn't the problem.
+        const val CLOCK_CAL_LIMIT = 10f
     }
 }

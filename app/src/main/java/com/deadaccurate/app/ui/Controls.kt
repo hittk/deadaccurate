@@ -79,3 +79,33 @@ private fun formatTrim(trimDb: Float): String {
     val rounded = trimDb.roundToInt()
     return if (rounded >= 0) "+$rounded dB" else "$rounded dB"
 }
+
+/**
+ * Clock calibration (docs/03-signal-processing.md §7): a stored s/day
+ * offset measured once against a reference timegrapher or known-rate
+ * movement. Steppers rather than a slider — the value wants 0.1 precision.
+ */
+@Composable
+fun CalibrationControls(
+    clockCalSecPerDay: Float,
+    onAdjust: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            "Clock cal %+.1f s/d".format(clockCalSecPerDay),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        TextButton(onClick = { onAdjust(-CAL_STEP) }) { Text("−0.1") }
+        TextButton(onClick = { onAdjust(CAL_STEP) }) { Text("+0.1") }
+        if (clockCalSecPerDay != 0f) {
+            TextButton(onClick = { onAdjust(0f) }) { Text("Reset") }
+        }
+    }
+}
+
+private const val CAL_STEP = 0.1f

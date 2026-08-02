@@ -63,6 +63,7 @@ fun TimegrapherScreen(viewModel: TimegrapherViewModel = viewModel()) {
         onSetInputPreference = viewModel::setInputPreference,
         onDismissOnboarding = viewModel::dismissOnboarding,
         onReplayFile = viewModel::replayFile,
+        onAdjustClockCal = viewModel::adjustClockCal,
     )
 
     Scaffold { innerPadding ->
@@ -135,6 +136,10 @@ private fun CaptureContent(
             calibrating = state.calibrating,
             onTrimChange = actions.onSetGateTrim,
             onRecalibrate = actions.onRecalibrate,
+        )
+        CalibrationControls(
+            clockCalSecPerDay = state.clockCalSecPerDay,
+            onAdjust = actions.onAdjustClockCal,
         )
 
         Button(onClick = actions.onToggleCapture, modifier = Modifier.fillMaxWidth()) {

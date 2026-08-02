@@ -24,6 +24,7 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
                 ?.let { stored -> InputPreference.entries.find { it.name == stored } }
                 ?: InputPreference.AUTO,
             onboardingDismissed = prefs[KEY_ONBOARDING_DISMISSED] ?: false,
+            clockCalSecPerDay = prefs[KEY_CLOCK_CAL] ?: 0f,
         )
     }
 
@@ -45,10 +46,15 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[KEY_ONBOARDING_DISMISSED] = dismissed }
     }
 
+    suspend fun setClockCalSecPerDay(secPerDay: Float) {
+        dataStore.edit { it[KEY_CLOCK_CAL] = secPerDay }
+    }
+
     private companion object {
         val KEY_GATE_TRIM = floatPreferencesKey("gate_trim_db")
         val KEY_BPH_OVERRIDE = intPreferencesKey("bph_override")
         val KEY_INPUT_PREFERENCE = stringPreferencesKey("input_preference")
         val KEY_ONBOARDING_DISMISSED = booleanPreferencesKey("onboarding_dismissed")
+        val KEY_CLOCK_CAL = floatPreferencesKey("clock_cal_sec_per_day")
     }
 }

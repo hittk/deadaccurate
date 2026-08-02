@@ -16,4 +16,11 @@ data class UserSettings(
     val bphOverride: Int? = null,
     val inputPreference: InputPreference = InputPreference.AUTO,
     val onboardingDismissed: Boolean = false,
+    /**
+     * Correction added to the measured rate, in s/day. The audio crystal's
+     * ppm error shifts every reading by a constant s/day offset
+     * (docs/03-signal-processing.md §7), so a single stored offset —
+     * measured once against a reference — restores absolute accuracy.
+     */
+    val clockCalSecPerDay: Float = 0f,
 )

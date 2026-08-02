@@ -20,17 +20,18 @@ guidance with the honest audio-clock accuracy disclosure, and dynamic
 Material You theming. Debug and minified release builds, 17 JVM tests,
 45 host C++ golden tests, and detekt are all green.
 
-**M5 progress:** beat error (ms) is implemented — the first stretch
-metric. The estimator splits the two alternating beat series and reads
-their offset from residuals around the common-slope fit; the readout
-appears under the s/day figure once both series have enough ticks.
+**M5 progress:** beat error (ms) and the clock calibration factor are
+implemented, plus **WAV replay** — "Analyze a recording (WAV)" runs any
+recorded file through the exact same DSP chain as live capture, so the
+full pipeline (gate, lock, s/day, beat error, trace) can be exercised
+with real watch recordings before a piezo rig exists.
 
 What separates code-complete from **v1 done** (docs/04-milestones.md) is
 hardware verification: live level from the piezo-TRRS rig with the
 unprocessed preset confirmed, a real movement drawing a clean trace, and
-a rate cross-check against a commercial timegrapher within the audio
-clock's error budget. Remaining stretch work (M5): clock calibration,
-amplitude, export.
+a rate cross-check against a commercial timegrapher (which is also how
+the clock calibration value gets measured). Remaining stretch work (M5):
+amplitude, session export.
 
 ### Building
 
