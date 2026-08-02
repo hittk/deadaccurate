@@ -126,3 +126,54 @@ TEST(RateEstimator, InactiveWithoutABeatRate) {
     FeedTicks(estimator, 100, kPeriodFrames);
     EXPECT_TRUE(!estimator.CurrentEstimate().valid);
 }
+
+namespace {
+
+// Ticks with beat error: onset n sits at n*T, shifted late by
+// `beatErrorFrames` on odd beats -> intervals alternate T+e / T-e.
+void FeedTicksWithBeatError(RateEstimator& estimator, int count, double period,
+                            int64_t beatErrorFrames) {
+    for (int i = 0; i < count; ++i) {
+        const int64_t offset = (i % 2 == 1) ? beatErrorFrames : 0;
+        estimator.AddTick(static_cast<int64_t>(std::llround(i * period)) + offset);
+    }
+}
+
+}  // namespace
+
+TEST(RateEstimator, MeasuresBeatError) {
+    RateEstimator estimator(kSampleRate);
+    estimator.Reset(kPeriodFrames);
+    FeedTicksWithBeatError(estimator, 120, kPeriodFrames, 48);  // 1 ms
+    const auto estimate = estimator.CurrentEstimate();
+    EXPECT_TRUE(estimate.valid);
+    EXPECT_NEAR(estimate.beatErrorMs, 1.0, 0.05);
+    EXPECT_NEAR(estimate.secPerDay, 0.0, 0.5);  // alternation must not read as rate
+}
+
+TEST(RateEstimator, CleanWatchReadsNearZeroBeatError) {
+    RateEstimator estimator(kSampleRate);
+    estimator.Reset(kPeriodFrames);
+    FeedTicks(estimator, 120, kPeriodFrames);
+    const auto estimate = estimator.CurrentEstimate();
+    EXPECT_TRUE(estimate.beatErrorMs >= 0.0);
+    EXPECT_NEAR(estimate.beatErrorMs, 0.0, 0.05);
+}
+
+TEST(RateEstimator, BeatErrorAndRateMeasureTogether) {
+    RateEstimator estimator(kSampleRate);
+    estimator.Reset(kPeriodFrames);
+    // 1 frame/beat fast AND 2 ms of beat error.
+    FeedTicksWithBeatError(estimator, 150, kPeriodFrames - 1.0, 96);
+    const auto estimate = estimator.CurrentEstimate();
+    EXPECT_TRUE(estimate.valid);
+    EXPECT_NEAR(estimate.secPerDay, 14.4, 0.5);
+    EXPECT_NEAR(estimate.beatErrorMs, 2.0, 0.1);
+}
+
+TEST(RateEstimator, BeatErrorInvalidWithTooFewTicks) {
+    RateEstimator estimator(kSampleRate);
+    estimator.Reset(kPeriodFrames);
+    FeedTicksWithBeatError(estimator, 15, kPeriodFrames, 48);
+    EXPECT_TRUE(estimator.CurrentEstimate().beatErrorMs < 0.0);
+}

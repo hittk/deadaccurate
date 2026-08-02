@@ -18,7 +18,8 @@ enum class EventType : int {
     kTick = 3,    // v[1]=deltaFrames since previous tick (0 for the first),
                   // v[2]=peakDb, v[3]=accepted
     kRate = 4,    // v[1]=activeBph, v[2]=locked, v[3]=overridden,
-                  // v[4]=rateValid, v[5]=secPerDay, v[6]=tickCount
+                  // v[4]=rateValid, v[5]=secPerDay, v[6]=tickCount,
+                  // v[7]=beatErrorMs (negative = not measurable)
 };
 
 enum class EngineState : int {
@@ -57,7 +58,7 @@ inline Event MakeTickEvent(float deltaFrames, float peakDb, bool accepted) {
 }
 
 inline Event MakeRateEvent(int activeBph, bool locked, bool overridden, bool rateValid,
-                           float secPerDay, int tickCount) {
+                           float secPerDay, int tickCount, float beatErrorMs) {
     Event e{};
     e.v[0] = static_cast<float>(EventType::kRate);
     e.v[1] = static_cast<float>(activeBph);
@@ -66,6 +67,7 @@ inline Event MakeRateEvent(int activeBph, bool locked, bool overridden, bool rat
     e.v[4] = rateValid ? 1.0f : 0.0f;
     e.v[5] = secPerDay;
     e.v[6] = static_cast<float>(tickCount);
+    e.v[7] = beatErrorMs;
     return e;
 }
 

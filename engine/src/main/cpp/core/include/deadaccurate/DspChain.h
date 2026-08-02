@@ -36,12 +36,13 @@ public:
     };
 
     struct RateFrame {
-        int activeBph;     // 0 while searching with no override
-        bool locked;       // detector currently locked
-        bool overridden;   // user override pins the rate
-        bool rateValid;    // enough clean window to trust secPerDay
-        float secPerDay;   // + = fast
-        int tickCount;     // accepted ticks in the estimation window
+        int activeBph;      // 0 while searching with no override
+        bool locked;        // detector currently locked
+        bool overridden;    // user override pins the rate
+        bool rateValid;     // enough clean window to trust secPerDay
+        float secPerDay;    // + = fast
+        int tickCount;      // accepted ticks in the estimation window
+        float beatErrorMs;  // negative = not yet measurable
     };
 
     struct Output {

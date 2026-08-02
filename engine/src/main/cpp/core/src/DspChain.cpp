@@ -44,6 +44,7 @@ void DspChain::EmitRateFrame(Output& out) {
         estimate.valid,
         static_cast<float>(estimate.secPerDay),
         estimate.tickCount,
+        static_cast<float>(estimate.beatErrorMs),
     });
     rateDirty_ = false;
 }

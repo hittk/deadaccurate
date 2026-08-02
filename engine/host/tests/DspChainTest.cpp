@@ -24,7 +24,8 @@ struct Lcg {
 
 // Synthetic watch: ambient noise at ~-60 dBFS plus a 2 ms decaying 5 kHz
 // click every beat period (docs/03-signal-processing.md section 8).
-std::vector<float> SyntheticWatchSignal(int seconds, double periodFrames) {
+std::vector<float> SyntheticWatchSignal(int seconds, double periodFrames,
+                                        int beatErrorFrames = 0) {
     Lcg lcg;
     std::vector<float> signal(static_cast<size_t>(seconds) * kSampleRate);
     for (auto& sample : signal) {
@@ -33,7 +34,10 @@ std::vector<float> SyntheticWatchSignal(int seconds, double periodFrames) {
     constexpr int kBurstFrames = 96;       // 2 ms
     constexpr float kBurstDecayFrames = 24.0f;  // 0.5 ms
     for (size_t beat = 0;; ++beat) {
-        const auto start = static_cast<size_t>(beat * periodFrames);
+        // Odd beats land late by beatErrorFrames: intervals alternate
+        // T+e / T-e like a real out-of-beat escapement.
+        const auto start = static_cast<size_t>(beat * periodFrames) +
+                           (beat % 2 == 1 ? beatErrorFrames : 0);
         if (start + kBurstFrames >= signal.size()) {
             break;
         }
@@ -156,6 +160,29 @@ TEST(DspChain, AutoLocksAndMeasuresAllStandardRates) {
         EXPECT_TRUE(last.rateValid);
         EXPECT_NEAR(last.secPerDay, kExpectedSecPerDay, 0.3);
     }
+}
+
+TEST(DspChain, MeasuresBeatErrorEndToEnd) {
+    DspChain chain(kSampleRate);  // auto-detect path
+
+    // 2 ms beat error (96 frames) on an otherwise perfect 28800 watch.
+    const std::vector<float> signal = SyntheticWatchSignal(16, kBeatPeriodFrames, 96);
+    DspChain::Output output;
+    DspChain::RateFrame last{};
+    constexpr size_t kChunk = 1024;
+    for (size_t offset = 0; offset < signal.size(); offset += kChunk) {
+        const size_t n = std::min(kChunk, signal.size() - offset);
+        chain.Process(signal.data() + offset, n, output);
+        for (const auto& rate : output.rates) {
+            last = rate;
+        }
+    }
+
+    EXPECT_TRUE(last.locked);
+    EXPECT_EQ(last.activeBph, kBph);
+    EXPECT_TRUE(last.rateValid);
+    EXPECT_NEAR(last.beatErrorMs, 2.0, 0.3);
+    EXPECT_NEAR(last.secPerDay, 0.0, 0.3);
 }
 
 TEST(DspChain, OverridePinsTheRateImmediately) {

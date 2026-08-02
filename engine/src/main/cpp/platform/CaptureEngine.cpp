@@ -171,7 +171,8 @@ void CaptureEngine::DspLoop() {
         }
         for (const auto& rate : output.rates) {
             events_.Push(MakeRateEvent(rate.activeBph, rate.locked, rate.overridden,
-                                       rate.rateValid, rate.secPerDay, rate.tickCount));
+                                       rate.rateValid, rate.secPerDay, rate.tickCount,
+                                       rate.beatErrorMs));
         }
     }
 }

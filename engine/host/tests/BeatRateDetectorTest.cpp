@@ -76,6 +76,20 @@ TEST(BeatRateDetector, UnlocksWhenTheSignalDegrades) {
     EXPECT_TRUE(!detector.locked());
 }
 
+TEST(BeatRateDetector, LocksDespiteBeatError) {
+    // 3 ms of beat error at 28800 bph: intervals alternate 128/122 ms,
+    // both 2.4% off the period — a real, regulatable movement that must
+    // still lock.
+    BeatRateDetector detector(kSampleRate);
+    const int64_t period = PeriodFrames(28800);
+    const int64_t beatErrorFrames = 144;  // 3 ms
+    for (int i = 0; i < 40; ++i) {
+        detector.AddOnset(i * period + (i % 2 == 1 ? beatErrorFrames : 0));
+    }
+    EXPECT_TRUE(detector.locked());
+    EXPECT_EQ(detector.lockedBph(), 28800);
+}
+
 TEST(BeatRateDetector, DistinguishesNeighboringRates) {
     // 25200 vs 28800: periods 142.9 ms vs 125 ms — must not cross-lock.
     BeatRateDetector detector(kSampleRate);

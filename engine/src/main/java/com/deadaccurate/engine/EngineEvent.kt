@@ -32,7 +32,8 @@ sealed interface EngineEvent {
 
     /**
      * Beat-rate identification and rate-deviation snapshot (~2 Hz plus on
-     * every change). [activeBph] 0 means still searching with no override.
+     * every change). [activeBph] 0 means still searching with no override;
+     * [beatErrorMs] is null until both beat series have enough ticks.
      */
     data class Rate(
         val activeBph: Int,
@@ -41,6 +42,7 @@ sealed interface EngineEvent {
         val rateValid: Boolean,
         val secPerDay: Float,
         val tickCount: Int,
+        val beatErrorMs: Float?,
     ) : EngineEvent
 
     /** Engine/stream state snapshot; emitted on every state change. */
@@ -111,6 +113,7 @@ object EventDecoder {
                         rateValid = buffer[base + 4] != 0f,
                         secPerDay = buffer[base + 5],
                         tickCount = buffer[base + 6].toInt(),
+                        beatErrorMs = buffer[base + 7].takeIf { it >= 0f },
                     ),
                 )
                 TYPE_STATUS -> events.add(

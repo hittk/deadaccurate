@@ -96,7 +96,7 @@ RateEstimator::TickResult RateEstimator::AddTick(int64_t frameIndex) {
 
 RateEstimator::Estimate RateEstimator::CurrentEstimate() const {
     if (periodFrames_ <= 0.0 || window_.size() < 2) {
-        return {false, 0.0, static_cast<int>(window_.size())};
+        return {false, 0.0, static_cast<int>(window_.size()), -1.0};
     }
 
     const auto span =
@@ -108,7 +108,7 @@ RateEstimator::Estimate RateEstimator::CurrentEstimate() const {
     const auto getY = [](const Point& p) { return p.deviationFrames; };
     const Fit first = FitSlope(window_, getX, getY);
     if (!first.valid) {
-        return {false, 0.0, static_cast<int>(window_.size())};
+        return {false, 0.0, static_cast<int>(window_.size()), -1.0};
     }
 
     // One robust refit: drop points whose residual exceeds 3 sigma
@@ -145,7 +145,29 @@ RateEstimator::Estimate RateEstimator::CurrentEstimate() const {
     // slope frames/beat over a period of periodFrames_ -> dimensionless rate
     // error; negative slope (ticks early) = fast watch = positive s/day.
     const double secPerDay = -used.slope / periodFrames_ * kSecondsPerDay;
-    return {enoughWindow, secPerDay, static_cast<int>(kept.size())};
+    return {enoughWindow, secPerDay, static_cast<int>(kept.size()),
+            BeatErrorMs(kept, used.slope)};
+}
+
+double RateEstimator::BeatErrorMs(const std::vector<Point>& kept, double slope) const {
+    // The escapement's two pallets alternate, so deviations form two series
+    // separated by the beat error. With unwrapped beat indices, parity is
+    // stable even across missed beats (multiple 2 preserves it).
+    double sum[2] = {0.0, 0.0};
+    int count[2] = {0, 0};
+    for (const auto& p : kept) {
+        // Residual around the common slope; a shared intercept cancels in
+        // the difference below, so slope*k alone is enough.
+        const double detrended = p.deviationFrames - slope * p.beatIndex;
+        const int parity = static_cast<int>(std::llround(p.beatIndex)) & 1;
+        sum[parity] += detrended;
+        ++count[parity];
+    }
+    if (count[0] < kMinTicksPerParity || count[1] < kMinTicksPerParity) {
+        return -1.0;
+    }
+    const double offsetFrames = sum[0] / count[0] - sum[1] / count[1];
+    return std::fabs(offsetFrames) / (sampleRate_ / 1000.0);
 }
 
 }  // namespace deadaccurate

@@ -52,7 +52,7 @@ class EventDecoderTest {
 
     @Test
     fun decodesRateEvent() {
-        val buffer = record(4f, 28800f, 1f, 0f, 1f, 14.4f, 120f)
+        val buffer = record(4f, 28800f, 1f, 0f, 1f, 14.4f, 120f, 1.5f)
         val events = EventDecoder.decode(buffer, 1)
 
         assertEquals(
@@ -64,10 +64,19 @@ class EventDecoderTest {
                     rateValid = true,
                     secPerDay = 14.4f,
                     tickCount = 120,
+                    beatErrorMs = 1.5f,
                 ),
             ),
             events,
         )
+    }
+
+    @Test
+    fun negativeBeatErrorDecodesAsNull() {
+        val buffer = record(4f, 28800f, 1f, 0f, 1f, 14.4f, 120f, -1f)
+        val rate = EventDecoder.decode(buffer, 1).single() as EngineEvent.Rate
+
+        assertEquals(null, rate.beatErrorMs)
     }
 
     @Test

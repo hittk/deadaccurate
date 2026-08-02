@@ -28,7 +28,11 @@ private:
     void Evaluate();
 
     static constexpr double kWindowSeconds = 8.0;
-    static constexpr double kIntervalTolerance = 0.02;  // ±2% of the period
+    // ±4% of the period: wide enough that a movement with several ms of
+    // beat error (intervals alternating T+e / T-e) still matches its own
+    // rate, narrow enough that neighboring standard rates (>=9% apart)
+    // don't cross-match.
+    static constexpr double kIntervalTolerance = 0.04;
     static constexpr int kMaxMultiple = 3;              // up to 2 missed ticks
     static constexpr double kSkippedBeatWeight = 0.5;
     static constexpr double kLockScore = 0.7;

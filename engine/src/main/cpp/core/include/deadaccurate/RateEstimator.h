@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <deque>
+#include <vector>
 
 namespace deadaccurate {
 
@@ -17,9 +18,14 @@ public:
     };
 
     struct Estimate {
-        bool valid;        // enough clean window to trust the number
-        double secPerDay;  // + = fast
-        int tickCount;     // accepted ticks in the window
+        bool valid;         // enough clean window to trust the number
+        double secPerDay;   // + = fast
+        int tickCount;      // accepted ticks in the window
+        // Beat error (docs/03-signal-processing.md "tick/tock alternation"):
+        // the offset between the two alternating beat series, from the
+        // difference of their mean residuals around the common-slope fit.
+        // Negative = not enough data in both parities yet.
+        double beatErrorMs;
     };
 
     explicit RateEstimator(int sampleRate);
@@ -38,6 +44,8 @@ private:
         int64_t frameIndex;
     };
 
+    double BeatErrorMs(const std::vector<Point>& kept, double slope) const;
+
     static constexpr double kWindowSeconds = 30.0;
     static constexpr double kMinSeconds = 10.0;
     static constexpr int kMinTicks = 40;
@@ -48,6 +56,7 @@ private:
     static constexpr double kMadFactor = 3.0;
     static constexpr double kMadToSigma = 1.4826;
     static constexpr double kSecondsPerDay = 86400.0;
+    static constexpr int kMinTicksPerParity = 10;
 
     const int sampleRate_;
 

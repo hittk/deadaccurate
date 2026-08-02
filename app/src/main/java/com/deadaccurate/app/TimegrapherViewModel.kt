@@ -44,6 +44,7 @@ data class TimegrapherUiState(
     val rateLocked: Boolean = false,
     val rateValid: Boolean = false,
     val secPerDay: Float = 0f,
+    val beatErrorMs: Float? = null,
     val rateTickCount: Int = 0,
     val tracePoints: List<TracePoint> = emptyList(),
     val traceHalfRangeMs: Float = DEFAULT_HALF_RANGE_MS,
@@ -286,6 +287,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 rateLocked = event.locked,
                 rateValid = event.rateValid,
                 secPerDay = event.secPerDay,
+                beatErrorMs = event.beatErrorMs,
                 rateTickCount = event.tickCount,
             )
         }

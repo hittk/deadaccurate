@@ -76,7 +76,11 @@ can show exactly what the gate is doing.
   score how well observed intervals fit integer multiples of that rate's beat
   period (missed ticks make intervals 2× or 3× the period — integer-multiple
   matching keeps them usable). Score = fraction of intervals within a
-  tolerance (±2%) of an integer multiple, weighted toward multiple = 1.
+  tolerance (±4%) of an integer multiple, weighted toward multiple = 1.
+  The tolerance is deliberately wider than measurement jitter: beat error
+  makes intervals alternate T+e / T−e, so a movement with a few ms of beat
+  error must still match its own rate. Neighboring standard rates sit ≥9%
+  apart, so ±4% cannot cross-match them.
 - **Lock** when one rate scores above 0.7 and beats the runner-up by a clear
   margin for ~3 consecutive evaluations; **unlock** (back to "searching")
   when its score decays below 0.4. Hysteresis prevents flapping between

@@ -42,6 +42,10 @@ a reading without instructions beyond the onboarding hints.
 
 ### M5 — Stretch (post-v1, in priority order)
 1. **Beat error (ms)** — split tick/tock series, difference of intercepts.
+   ✅ Shipped: parity-split residuals around the common-slope fit, valid
+   once both series have ≥10 ticks; verified by golden tests including an
+   end-to-end 2 ms case, and the interval-match tolerance was widened to
+   ±4% so out-of-beat movements still auto-lock.
 2. **Clock calibration factor** — settings flow to correct the crystal ppm
    against a reference; unlocks true absolute accuracy.
 3. **Amplitude (°)** — sub-pulse detection on the raw band-passed signal +

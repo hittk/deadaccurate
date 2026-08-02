@@ -28,6 +28,13 @@ fun RateReadout(state: TimegrapherUiState, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.displayMedium,
             color = valueColor,
         )
+        state.beatErrorMs?.let { beatError ->
+            Text(
+                text = "beat error %.1f ms".format(beatError),
+                style = MaterialTheme.typography.titleMedium,
+                color = valueColor,
+            )
+        }
         Text(
             text = statusLine(state),
             style = MaterialTheme.typography.bodySmall,
