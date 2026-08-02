@@ -53,7 +53,7 @@ fun TimegrapherScreen(viewModel: TimegrapherViewModel = viewModel()) {
     val actions = CaptureActions(
         onToggleCapture = viewModel::toggleCapture,
         onDismissInputLost = viewModel::dismissInputLost,
-        onSetBph = viewModel::setBph,
+        onSetBphOverride = viewModel::setBphOverride,
         onSetGateTrim = viewModel::setGateTrimDb,
         onRecalibrate = viewModel::recalibrateGate,
     )
@@ -111,8 +111,13 @@ private fun CaptureContent(
         InputChip(state.wiredInputName)
         Notices(state, actions.onDismissInputLost)
 
+        RateReadout(state)
         BeatTrace(points = state.tracePoints, halfRangeMs = state.traceHalfRangeMs)
-        RateSelector(selectedBph = state.bph, onSelect = actions.onSetBph)
+        RateSelector(
+            overrideBph = state.bphOverride,
+            detectedBph = state.activeBph,
+            onSelect = actions.onSetBphOverride,
+        )
 
         MeterSection(state)
         GateControls(

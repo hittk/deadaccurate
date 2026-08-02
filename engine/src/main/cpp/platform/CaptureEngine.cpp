@@ -121,9 +121,9 @@ void CaptureEngine::DspLoop() {
     std::vector<float> scratch(1024);
 
     float appliedTrimDb = gateTrimDb_.load();
-    int appliedBph = bph_.load();
+    int appliedBph = bphOverride_.load();
     chain.SetGateTrimDb(appliedTrimDb);
-    chain.SetBeatRateBph(appliedBph);
+    chain.SetBphOverride(appliedBph);
     int64_t previousTickFrame = -1;
 
     events_.Push(MakeStatusEvent(EngineState::kRunning, sampleRate_, unprocessed_,
@@ -141,10 +141,10 @@ void CaptureEngine::DspLoop() {
             appliedTrimDb = trimDb;
             chain.SetGateTrimDb(trimDb);
         }
-        const int bph = bph_.load();
+        const int bph = bphOverride_.load();
         if (bph != appliedBph) {
             appliedBph = bph;
-            chain.SetBeatRateBph(bph);
+            chain.SetBphOverride(bph);
         }
         if (recalibrateRequested_.exchange(false)) {
             chain.RecalibrateGate();
@@ -167,7 +167,11 @@ void CaptureEngine::DspLoop() {
                     ? 0.0f
                     : static_cast<float>(tick.frameIndex - previousTickFrame);
             previousTickFrame = tick.frameIndex;
-            events_.Push(MakeTickEvent(deltaFrames, tick.peakDb));
+            events_.Push(MakeTickEvent(deltaFrames, tick.peakDb, tick.accepted));
+        }
+        for (const auto& rate : output.rates) {
+            events_.Push(MakeRateEvent(rate.activeBph, rate.locked, rate.overridden,
+                                       rate.rateValid, rate.secPerDay, rate.tickCount));
         }
     }
 }

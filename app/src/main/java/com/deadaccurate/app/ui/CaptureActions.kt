@@ -4,7 +4,8 @@ package com.deadaccurate.app.ui
 data class CaptureActions(
     val onToggleCapture: () -> Unit,
     val onDismissInputLost: () -> Unit,
-    val onSetBph: (Int) -> Unit,
+    /** null = return to auto-detection. */
+    val onSetBphOverride: (Int?) -> Unit,
     val onSetGateTrim: (Float) -> Unit,
     val onRecalibrate: () -> Unit,
 )

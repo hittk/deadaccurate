@@ -28,7 +28,8 @@ internal object NativeEngine {
 
     external fun nativeRecalibrateGate(handle: Long)
 
-    external fun nativeSetBeatRateBph(handle: Long, bph: Int)
+    /** Positive pins the beat rate; 0 returns to auto-detection. */
+    external fun nativeSetBphOverride(handle: Long, bph: Int)
 
     /**
      * Fills [out] with flat event records ([EventDecoder.EVENT_FLOATS] floats

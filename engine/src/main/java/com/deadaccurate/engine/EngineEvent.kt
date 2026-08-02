@@ -21,9 +21,27 @@ sealed interface EngineEvent {
     /**
      * One detected tick. [deltaFrames] is the audio-clock distance to the
      * previous tick (0 for the first of a session); accumulate in a Double
-     * for absolute time.
+     * for absolute time. [accepted] false marks an outlier excluded from
+     * rate estimation (rendered dimmed on the trace).
      */
-    data class Tick(val deltaFrames: Float, val peakDb: Float) : EngineEvent
+    data class Tick(
+        val deltaFrames: Float,
+        val peakDb: Float,
+        val accepted: Boolean,
+    ) : EngineEvent
+
+    /**
+     * Beat-rate identification and rate-deviation snapshot (~2 Hz plus on
+     * every change). [activeBph] 0 means still searching with no override.
+     */
+    data class Rate(
+        val activeBph: Int,
+        val locked: Boolean,
+        val overridden: Boolean,
+        val rateValid: Boolean,
+        val secPerDay: Float,
+        val tickCount: Int,
+    ) : EngineEvent
 
     /** Engine/stream state snapshot; emitted on every state change. */
     data class Status(
@@ -61,6 +79,7 @@ object EventDecoder {
     private const val TYPE_LEVEL = 1
     private const val TYPE_STATUS = 2
     private const val TYPE_TICK = 3
+    private const val TYPE_RATE = 4
 
     /** Decodes [count] records from [buffer] as filled by nativeDrainEvents. */
     fun decode(buffer: FloatArray, count: Int): List<EngineEvent> {
@@ -81,6 +100,17 @@ object EventDecoder {
                     EngineEvent.Tick(
                         deltaFrames = buffer[base + 1],
                         peakDb = buffer[base + 2],
+                        accepted = buffer[base + 3] != 0f,
+                    ),
+                )
+                TYPE_RATE -> events.add(
+                    EngineEvent.Rate(
+                        activeBph = buffer[base + 1].toInt(),
+                        locked = buffer[base + 2] != 0f,
+                        overridden = buffer[base + 3] != 0f,
+                        rateValid = buffer[base + 4] != 0f,
+                        secPerDay = buffer[base + 5],
+                        tickCount = buffer[base + 6].toInt(),
                     ),
                 )
                 TYPE_STATUS -> events.add(

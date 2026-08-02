@@ -13,20 +13,22 @@ import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
 import com.deadaccurate.app.TimegrapherUiState
+import com.deadaccurate.app.trace.TracePoint
 
 /**
  * The timegrapher tape (FR-6): one dot per detected tick, x scrolling with
- * tick index, y = phase deviation wrapped to ±[halfRangeMs]. Rendered as a
- * single drawPoints call from an immutable snapshot — no per-dot
- * composables.
+ * tick index, y = phase deviation wrapped to ±[halfRangeMs]. Accepted ticks
+ * draw in full color; rejected outliers draw dimmed. Two drawPoints calls
+ * from an immutable snapshot — no per-dot composables.
  */
 @Composable
 fun BeatTrace(
-    points: List<Float>,
+    points: List<TracePoint>,
     halfRangeMs: Float,
     modifier: Modifier = Modifier,
 ) {
     val dotColor = MaterialTheme.colorScheme.primary
+    val rejectedColor = MaterialTheme.colorScheme.outlineVariant
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val background = MaterialTheme.colorScheme.surfaceContainerLow
 
@@ -47,14 +49,24 @@ fun BeatTrace(
         if (points.isEmpty() || halfRangeMs <= 0f) return@Canvas
 
         val stepX = size.width / (TimegrapherUiState.TRACE_CAPACITY - 1)
-        val offsets = points.mapIndexed { index, deviationMs ->
-            Offset(
+        val accepted = ArrayList<Offset>(points.size)
+        val rejected = ArrayList<Offset>()
+        points.forEachIndexed { index, point ->
+            val offset = Offset(
                 x = index * stepX,
-                y = midY - (deviationMs / halfRangeMs) * midY,
+                y = midY - (point.deviationMs / halfRangeMs) * midY,
             )
+            if (point.accepted) accepted.add(offset) else rejected.add(offset)
         }
         drawPoints(
-            points = offsets,
+            points = rejected,
+            pointMode = PointMode.Points,
+            color = rejectedColor,
+            strokeWidth = 5f,
+            cap = StrokeCap.Round,
+        )
+        drawPoints(
+            points = accepted,
             pointMode = PointMode.Points,
             color = dotColor,
             strokeWidth = 6f,

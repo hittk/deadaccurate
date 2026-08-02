@@ -19,6 +19,8 @@ add_executable(core_tests
     tests/EnvelopeFollowerTest.cpp
     tests/NoiseGateTest.cpp
     tests/DspChainTest.cpp
+    tests/BeatRateDetectorTest.cpp
+    tests/RateEstimatorTest.cpp
     tests/VersionTest.cpp
     tests/TestMain.cpp
 )

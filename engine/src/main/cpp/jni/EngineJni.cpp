@@ -63,10 +63,10 @@ Java_com_deadaccurate_engine_NativeEngine_nativeRecalibrateGate(JNIEnv* /*env*/,
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_deadaccurate_engine_NativeEngine_nativeSetBeatRateBph(JNIEnv* /*env*/,
+Java_com_deadaccurate_engine_NativeEngine_nativeSetBphOverride(JNIEnv* /*env*/,
                                                                jobject /*thiz*/, jlong handle,
                                                                jint bph) {
-    FromHandle(handle)->SetBeatRateBph(bph);
+    FromHandle(handle)->SetBphOverride(bph);
 }
 
 extern "C" JNIEXPORT jint JNICALL

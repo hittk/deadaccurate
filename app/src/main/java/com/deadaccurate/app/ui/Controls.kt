@@ -18,20 +18,28 @@ import androidx.compose.ui.unit.dp
 import com.deadaccurate.app.TimegrapherUiState
 import kotlin.math.roundToInt
 
-/** Manual beat-rate selection (M2; auto-detect arrives in M3). */
+/** Beat-rate control (FR-4): auto-detection by default, tap to pin. */
 @Composable
 fun RateSelector(
-    selectedBph: Int,
-    onSelect: (Int) -> Unit,
+    overrideBph: Int?,
+    detectedBph: Int,
+    onSelect: (Int?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        val autoLabel =
+            if (overrideBph == null && detectedBph > 0) "Auto ($detectedBph)" else "Auto"
+        FilterChip(
+            selected = overrideBph == null,
+            onClick = { onSelect(null) },
+            label = { Text(autoLabel) },
+        )
         TimegrapherUiState.STANDARD_RATES.forEach { bph ->
             FilterChip(
-                selected = bph == selectedBph,
+                selected = bph == overrideBph,
                 onClick = { onSelect(bph) },
                 label = { Text("$bph") },
             )

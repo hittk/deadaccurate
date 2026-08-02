@@ -16,7 +16,9 @@ enum class EventType : int {
     kStatus = 2,  // v[1]=EngineState, v[2]=sampleRate, v[3]=unprocessed,
                   // v[4]=exclusive, v[5]=deviceId, v[6]=errorCode
     kTick = 3,    // v[1]=deltaFrames since previous tick (0 for the first),
-                  // v[2]=peakDb
+                  // v[2]=peakDb, v[3]=accepted
+    kRate = 4,    // v[1]=activeBph, v[2]=locked, v[3]=overridden,
+                  // v[4]=rateValid, v[5]=secPerDay, v[6]=tickCount
 };
 
 enum class EngineState : int {
@@ -45,11 +47,25 @@ inline Event MakeLevelEvent(float rmsDb, float peakDb, float gateThresholdDb,
 // Tick timestamps cross the seam as deltas because a float cannot hold large
 // absolute frame indices exactly; the Kotlin side accumulates them in a
 // Double.
-inline Event MakeTickEvent(float deltaFrames, float peakDb) {
+inline Event MakeTickEvent(float deltaFrames, float peakDb, bool accepted) {
     Event e{};
     e.v[0] = static_cast<float>(EventType::kTick);
     e.v[1] = deltaFrames;
     e.v[2] = peakDb;
+    e.v[3] = accepted ? 1.0f : 0.0f;
+    return e;
+}
+
+inline Event MakeRateEvent(int activeBph, bool locked, bool overridden, bool rateValid,
+                           float secPerDay, int tickCount) {
+    Event e{};
+    e.v[0] = static_cast<float>(EventType::kRate);
+    e.v[1] = static_cast<float>(activeBph);
+    e.v[2] = locked ? 1.0f : 0.0f;
+    e.v[3] = overridden ? 1.0f : 0.0f;
+    e.v[4] = rateValid ? 1.0f : 0.0f;
+    e.v[5] = secPerDay;
+    e.v[6] = static_cast<float>(tickCount);
     return e;
 }
 

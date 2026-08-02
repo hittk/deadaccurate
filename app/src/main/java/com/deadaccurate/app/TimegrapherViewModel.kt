@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.deadaccurate.app.audio.AudioInputMonitor
 import com.deadaccurate.app.trace.TraceComputer
+import com.deadaccurate.app.trace.TracePoint
 import com.deadaccurate.engine.AudioEngine
 import com.deadaccurate.engine.EngineEvent
 import com.deadaccurate.engine.EngineState
@@ -32,8 +33,15 @@ data class TimegrapherUiState(
     val gateOpen: Boolean = false,
     val calibrating: Boolean = false,
     val gateTrimDb: Float = 0f,
-    val bph: Int = DEFAULT_BPH,
-    val tracePoints: List<Float> = emptyList(),
+    /** null = auto-detect (FR-4); a value pins the rate. */
+    val bphOverride: Int? = null,
+    /** Rate in effect (override or locked detection); 0 while searching. */
+    val activeBph: Int = 0,
+    val rateLocked: Boolean = false,
+    val rateValid: Boolean = false,
+    val secPerDay: Float = 0f,
+    val rateTickCount: Int = 0,
+    val tracePoints: List<TracePoint> = emptyList(),
     val traceHalfRangeMs: Float = DEFAULT_HALF_RANGE_MS,
     val wiredInputName: String? = null,
     val inputLost: Boolean = false,
@@ -43,7 +51,6 @@ data class TimegrapherUiState(
 ) {
     companion object {
         const val SILENCE_DB = -120f
-        const val DEFAULT_BPH = 28800
         const val DEFAULT_HALF_RANGE_MS = 62.5f
         val STANDARD_RATES = listOf(18000, 19800, 21600, 25200, 28800, 36000)
         const val TRACE_CAPACITY = 480
@@ -63,7 +70,8 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
 
     private var eventJob: Job? = null
     private var traceComputer: TraceComputer? = null
-    private val traceBuffer = ArrayDeque<Float>()
+    private var traceBph = 0
+    private val traceBuffer = ArrayDeque<TracePoint>()
 
     init {
         viewModelScope.launch {
@@ -87,10 +95,11 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         _uiState.update { it.copy(inputLost = false) }
     }
 
-    fun setBph(bph: Int) {
-        engine.setBeatRateBph(bph)
-        _uiState.update { it.copy(bph = bph) }
-        resetTrace()
+    /** [bph] null returns to auto-detection. */
+    fun setBphOverride(bph: Int?) {
+        engine.setBphOverride(bph ?: 0)
+        _uiState.update { it.copy(bphOverride = bph) }
+        // The trace resets when the engine reports the new active rate.
     }
 
     fun setGateTrimDb(trimDb: Float) {
@@ -112,7 +121,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
             }
 
         // The DSP chain reads these when its thread spins up.
-        engine.setBeatRateBph(_uiState.value.bph)
+        engine.setBphOverride(_uiState.value.bphOverride ?: 0)
         engine.setGateTrimDb(_uiState.value.gateTrimDb)
 
         val result = engine.start(deviceId, preset)
@@ -141,6 +150,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 gateThresholdDb = null,
                 gateOpen = false,
                 calibrating = false,
+                rateValid = false,
                 streamInfo = null,
             )
         }
@@ -160,44 +170,69 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
 
             is EngineEvent.Tick -> onTick(event)
 
-            is EngineEvent.Status -> when (event.state) {
-                EngineState.RUNNING -> {
-                    _uiState.update {
-                        it.copy(
-                            streamInfo = StreamInfo(
-                                sampleRate = event.sampleRate,
-                                unprocessed = event.unprocessed,
-                                exclusiveMode = event.exclusiveMode,
-                            ),
-                        )
-                    }
-                    resetTrace(sampleRate = event.sampleRate)
-                }
+            is EngineEvent.Rate -> onRate(event)
 
-                // FR-2: on input loss, stop and prompt instead of silently
-                // degrading to another route.
-                EngineState.DISCONNECTED -> {
-                    stopCapture()
-                    _uiState.update { it.copy(inputLost = true) }
-                }
+            is EngineEvent.Status -> onStatus(event)
+        }
+    }
 
-                EngineState.IDLE, EngineState.ERROR -> Unit
+    private fun onStatus(event: EngineEvent.Status) {
+        when (event.state) {
+            EngineState.RUNNING -> {
+                _uiState.update {
+                    it.copy(
+                        streamInfo = StreamInfo(
+                            sampleRate = event.sampleRate,
+                            unprocessed = event.unprocessed,
+                            exclusiveMode = event.exclusiveMode,
+                        ),
+                    )
+                }
+                // New stream, new audio clock: restart the tape.
+                if (traceBph > 0) resetTrace(traceBph)
             }
+
+            // FR-2: on input loss, stop and prompt instead of silently
+            // degrading to another route.
+            EngineState.DISCONNECTED -> {
+                stopCapture()
+                _uiState.update { it.copy(inputLost = true) }
+            }
+
+            EngineState.IDLE, EngineState.ERROR -> Unit
+        }
+    }
+
+    private fun onRate(event: EngineEvent.Rate) {
+        // The trace follows the active grid; when confidence is lost
+        // (activeBph 0) it keeps drawing against the last locked grid.
+        if (event.activeBph > 0 && event.activeBph != traceBph) {
+            resetTrace(event.activeBph)
+        }
+        _uiState.update {
+            it.copy(
+                activeBph = event.activeBph,
+                rateLocked = event.locked,
+                rateValid = event.rateValid,
+                secPerDay = event.secPerDay,
+                rateTickCount = event.tickCount,
+            )
         }
     }
 
     private fun onTick(tick: EngineEvent.Tick) {
         val computer = traceComputer ?: return
-        traceBuffer.addLast(computer.addTick(tick.deltaFrames))
+        traceBuffer.addLast(TracePoint(computer.addTick(tick.deltaFrames), tick.accepted))
         while (traceBuffer.size > TimegrapherUiState.TRACE_CAPACITY) {
             traceBuffer.removeFirst()
         }
         _uiState.update { it.copy(tracePoints = traceBuffer.toList()) }
     }
 
-    private fun resetTrace(sampleRate: Int? = null) {
-        val rate = sampleRate ?: _uiState.value.streamInfo?.sampleRate
-        traceComputer = rate?.let { TraceComputer(it, _uiState.value.bph) }
+    private fun resetTrace(bph: Int) {
+        traceBph = bph
+        val rate = _uiState.value.streamInfo?.sampleRate
+        traceComputer = rate?.let { TraceComputer(it, bph) }
         traceBuffer.clear()
         _uiState.update {
             it.copy(

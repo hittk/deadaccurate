@@ -24,7 +24,7 @@ struct Lcg {
 
 // Synthetic watch: ambient noise at ~-60 dBFS plus a 2 ms decaying 5 kHz
 // click every beat period (docs/03-signal-processing.md section 8).
-std::vector<float> SyntheticWatchSignal(int seconds) {
+std::vector<float> SyntheticWatchSignal(int seconds, double periodFrames) {
     Lcg lcg;
     std::vector<float> signal(static_cast<size_t>(seconds) * kSampleRate);
     for (auto& sample : signal) {
@@ -32,8 +32,11 @@ std::vector<float> SyntheticWatchSignal(int seconds) {
     }
     constexpr int kBurstFrames = 96;       // 2 ms
     constexpr float kBurstDecayFrames = 24.0f;  // 0.5 ms
-    for (size_t start = 0; start + kBurstFrames < signal.size();
-         start += kBeatPeriodFrames) {
+    for (size_t beat = 0;; ++beat) {
+        const auto start = static_cast<size_t>(beat * periodFrames);
+        if (start + kBurstFrames >= signal.size()) {
+            break;
+        }
         for (int j = 0; j < kBurstFrames; ++j) {
             const auto burst = static_cast<float>(
                 0.3 * std::exp(-j / kBurstDecayFrames) *
@@ -48,9 +51,9 @@ std::vector<float> SyntheticWatchSignal(int seconds) {
 
 TEST(DspChain, DetectsSyntheticTickTrain) {
     DspChain chain(kSampleRate);
-    chain.SetBeatRateBph(kBph);
+    chain.SetBphOverride(kBph);
 
-    const std::vector<float> signal = SyntheticWatchSignal(6);
+    const std::vector<float> signal = SyntheticWatchSignal(6, kBeatPeriodFrames);
     DspChain::Output output;
     std::vector<int64_t> tickFrames;
     size_t calibratingLevels = 0;
@@ -90,9 +93,94 @@ TEST(DspChain, DetectsSyntheticTickTrain) {
     EXPECT_NEAR(static_cast<double>(calibratingLevels), 30.0, 3.0);
 }
 
+TEST(DspChain, AutoDetectsRateAndMeasuresFastWatchEndToEnd) {
+    DspChain chain(kSampleRate);  // no override: auto-detection path
+
+    // True period 5999 frames instead of 6000: 1 frame/beat fast at 28800
+    // bph -> 86400/6000 = +14.4 s/day.
+    const std::vector<float> signal = SyntheticWatchSignal(16, 5999.0);
+    DspChain::Output output;
+    DspChain::RateFrame last{};
+    bool sawSearching = false;
+
+    constexpr size_t kChunk = 1024;
+    for (size_t offset = 0; offset < signal.size(); offset += kChunk) {
+        const size_t n = std::min(kChunk, signal.size() - offset);
+        chain.Process(signal.data() + offset, n, output);
+        for (const auto& rate : output.rates) {
+            if (rate.activeBph == 0) {
+                sawSearching = true;
+            }
+            last = rate;
+        }
+    }
+
+    EXPECT_TRUE(sawSearching);  // it searched before locking
+    EXPECT_TRUE(last.locked);
+    EXPECT_TRUE(!last.overridden);
+    EXPECT_EQ(last.activeBph, kBph);
+    EXPECT_TRUE(last.rateValid);
+    // M3 acceptance bar (docs/04-milestones.md): within ±0.3 s/day of
+    // ground truth on synthetic fixtures.
+    EXPECT_NEAR(last.secPerDay, 14.4, 0.3);
+    EXPECT_TRUE(last.tickCount >= 60);
+}
+
+TEST(DspChain, AutoLocksAndMeasuresAllStandardRates) {
+    // M3 acceptance: every standard rate auto-locks from raw audio and the
+    // readout lands within ±0.3 s/day of ground truth.
+    constexpr int kRates[] = {18000, 19800, 21600, 25200, 28800, 36000};
+    // 20 ppm fast -> +1.728 s/day, same for every rate.
+    constexpr double kSpeedFactor = 1.0 - 20e-6;
+    constexpr double kExpectedSecPerDay = 20e-6 * 86400.0;
+
+    for (const int bph : kRates) {
+        const double idealPeriod = 3600.0 / bph * kSampleRate;
+        const std::vector<float> signal =
+            SyntheticWatchSignal(16, idealPeriod * kSpeedFactor);
+
+        DspChain chain(kSampleRate);
+        DspChain::Output output;
+        DspChain::RateFrame last{};
+        constexpr size_t kChunk = 1024;
+        for (size_t offset = 0; offset < signal.size(); offset += kChunk) {
+            const size_t n = std::min(kChunk, signal.size() - offset);
+            chain.Process(signal.data() + offset, n, output);
+            for (const auto& rate : output.rates) {
+                last = rate;
+            }
+        }
+
+        EXPECT_TRUE(last.locked);
+        EXPECT_EQ(last.activeBph, bph);
+        EXPECT_TRUE(last.rateValid);
+        EXPECT_NEAR(last.secPerDay, kExpectedSecPerDay, 0.3);
+    }
+}
+
+TEST(DspChain, OverridePinsTheRateImmediately) {
+    DspChain chain(kSampleRate);
+    chain.SetBphOverride(18000);
+
+    const std::vector<float> signal = SyntheticWatchSignal(4, kBeatPeriodFrames);
+    DspChain::Output output;
+    DspChain::RateFrame last{};
+    constexpr size_t kChunk = 1024;
+    for (size_t offset = 0; offset < signal.size(); offset += kChunk) {
+        const size_t n = std::min(kChunk, signal.size() - offset);
+        chain.Process(signal.data() + offset, n, output);
+        for (const auto& rate : output.rates) {
+            last = rate;
+        }
+    }
+    // The signal is 28800 but the override pins 18000 (and reports it).
+    EXPECT_EQ(last.activeBph, 18000);
+    EXPECT_TRUE(last.overridden);
+}
+
 TEST(DspChain, StaysSilentOnPureNoise) {
     DspChain chain(kSampleRate);
-    chain.SetBeatRateBph(kBph);
+    chain.SetBphOverride(kBph);
 
     Lcg lcg;
     std::vector<float> noise(static_cast<size_t>(4) * kSampleRate);

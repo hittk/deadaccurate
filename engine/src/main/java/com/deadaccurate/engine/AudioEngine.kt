@@ -49,10 +49,10 @@ class AudioEngine {
         NativeEngine.nativeRecalibrateGate(handle)
     }
 
-    /** Active beat rate; drives the tick detector's refractory period. */
-    fun setBeatRateBph(bph: Int) {
+    /** Pins the beat rate to [bph] (FR-4 override); 0 = auto-detect. */
+    fun setBphOverride(bph: Int) {
         ensureHandle()
-        NativeEngine.nativeSetBeatRateBph(handle, bph)
+        NativeEngine.nativeSetBphOverride(handle, bph)
     }
 
     private fun ensureHandle() {

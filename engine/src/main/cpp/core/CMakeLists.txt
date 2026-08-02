@@ -11,6 +11,8 @@ add_library(deadaccurate_core STATIC
     src/NoiseGate.cpp
     src/TickDetector.cpp
     src/DspChain.cpp
+    src/BeatRateDetector.cpp
+    src/RateEstimator.cpp
 )
 
 target_include_directories(deadaccurate_core PUBLIC include)

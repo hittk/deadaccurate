@@ -30,10 +30,44 @@ class EventDecoderTest {
 
     @Test
     fun decodesTickEvent() {
-        val buffer = record(3f, 6000f, -20f)
+        val buffer = record(3f, 6000f, -20f, 1f)
         val events = EventDecoder.decode(buffer, 1)
 
-        assertEquals(listOf(EngineEvent.Tick(deltaFrames = 6000f, peakDb = -20f)), events)
+        assertEquals(
+            listOf(EngineEvent.Tick(deltaFrames = 6000f, peakDb = -20f, accepted = true)),
+            events,
+        )
+    }
+
+    @Test
+    fun decodesRejectedTickEvent() {
+        val buffer = record(3f, 2500f, -30f, 0f)
+        val events = EventDecoder.decode(buffer, 1)
+
+        assertEquals(
+            listOf(EngineEvent.Tick(deltaFrames = 2500f, peakDb = -30f, accepted = false)),
+            events,
+        )
+    }
+
+    @Test
+    fun decodesRateEvent() {
+        val buffer = record(4f, 28800f, 1f, 0f, 1f, 14.4f, 120f)
+        val events = EventDecoder.decode(buffer, 1)
+
+        assertEquals(
+            listOf(
+                EngineEvent.Rate(
+                    activeBph = 28800,
+                    locked = true,
+                    overridden = false,
+                    rateValid = true,
+                    secPerDay = 14.4f,
+                    tickCount = 120,
+                ),
+            ),
+            events,
+        )
     }
 
     @Test

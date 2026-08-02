@@ -9,19 +9,20 @@ signature from background noise.
 
 ## Status
 
-**M2 — noise gate and beat trace (code-complete).** The full v1 signal
-chain now runs on the DSP thread: 2–12 kHz band-pass → envelope follower →
-auto-calibrating noise gate (median floor, hysteresis, hold, ±15 dB trim) →
-tick onset detection with a beat-rate-derived refractory period. Ticks
-stream to the UI as audio-clock deltas and render as the classic scrolling
-timegrapher tape against a manually selected beat rate; the level meter
-shows the gate threshold on the same scale. Golden host tests cover every
-DSP stage, including a synthetic 28800 bph watch detected through the whole
-chain and a pure-noise fixture producing zero ticks.
+**M3 — beat-rate auto-detection and rate readout (code-complete).** The
+whole v1 measurement chain now runs end to end: band-pass → envelope →
+auto-calibrating noise gate → tick detection → beat-rate identification
+(auto-lock with hysteresis across the six standard rates, manual override)
+→ robust rate regression with unwrapped phase tracking and MAD outlier
+rejection. The UI shows the headline ±s/day readout (greyed until the
+estimation window is trustworthy), the locked/pinned/searching status, an
+Auto + override rate selector, and dims rejected outlier dots on the tape.
 
-Pending hardware verification (per docs/04-milestones.md): a real watch on
-the piezo rig drawing a recognizable trace. M3 (beat-rate auto-detect and
-the s/day readout) is next.
+The M3 acceptance bar is enforced by golden tests: from raw synthetic
+audio, all six standard rates auto-lock and a 20 ppm rate error reads
+within ±0.3 s/day. Pending hardware verification: cross-check against a
+commercial timegrapher (limited by the device audio clock — see
+docs/03-signal-processing.md §7). M4 (persistence and polish) is next.
 
 ### Building
 
