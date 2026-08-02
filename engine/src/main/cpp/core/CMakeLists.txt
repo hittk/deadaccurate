@@ -6,6 +6,7 @@ project(deadaccurate_core LANGUAGES CXX)
 
 add_library(deadaccurate_core STATIC
     src/Version.cpp
+    src/LevelAnalyzer.cpp
 )
 
 target_include_directories(deadaccurate_core PUBLIC include)

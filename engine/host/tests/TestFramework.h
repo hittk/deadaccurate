@@ -66,3 +66,11 @@ inline int RunAll() {
     } while (false)
 
 #define EXPECT_EQ(a, b) EXPECT_TRUE((a) == (b))
+
+#define EXPECT_NEAR(a, b, tolerance)                                          \
+    do {                                                                      \
+        const double expect_near_diff = static_cast<double>(a) -              \
+                                        static_cast<double>(b);               \
+        EXPECT_TRUE(expect_near_diff <= (tolerance) &&                        \
+                    expect_near_diff >= -(tolerance));                        \
+    } while (false)

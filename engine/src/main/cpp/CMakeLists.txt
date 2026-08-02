@@ -8,11 +8,13 @@ add_subdirectory(core)
 
 add_library(deadaccurate_engine SHARED
     jni/EngineJni.cpp
+    platform/CaptureEngine.cpp
 )
 
 target_link_libraries(deadaccurate_engine
     PRIVATE
     deadaccurate_core
+    aaudio
     android
     log
 )

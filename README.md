@@ -9,11 +9,16 @@ signature from background noise.
 
 ## Status
 
-**M0 — scaffold.** The planning docs below are complete and the project
-skeleton builds: `:app` (Compose) and `:engine` (NDK/CMake) compile to a
-debug APK, the JNI seam is proven by a native version smoke call, and the
-host-side C++ core tests pass. Measurement functionality starts landing
-in M1.
+**M1 — capture pipeline (code-complete).** The AAudio capture path is
+implemented end to end: unprocessed low-latency input (exclusive→shared
+fallback), wired-headset/piezo routing with disconnect handling, the
+lock-free ring buffer → DSP thread → event queue pipeline, the RECORD_AUDIO
+permission flow, and a live RMS/peak level meter with stream diagnostics in
+the UI. Builds, JVM tests, detekt, and host C++ tests are all green.
+
+Still pending for M1 sign-off (needs hardware, per docs/04-milestones.md):
+verifying the piezo-TRRS rig shows live level with the unprocessed preset
+confirmed, and that unplugging pauses with a prompt.
 
 ### Building
 

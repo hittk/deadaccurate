@@ -13,6 +13,8 @@ add_subdirectory(../src/main/cpp/core core)
 
 add_executable(core_tests
     tests/SpscRingBufferTest.cpp
+    tests/SpscEventQueueTest.cpp
+    tests/LevelAnalyzerTest.cpp
     tests/VersionTest.cpp
     tests/TestMain.cpp
 )

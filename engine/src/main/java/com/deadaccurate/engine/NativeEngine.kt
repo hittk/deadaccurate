@@ -1,18 +1,32 @@
 package com.deadaccurate.engine
 
 /**
- * JNI seam to the native audio engine.
- *
- * M0 exposes only a version smoke call proving the library loads and the
- * seam works. The real surface (create/start/stop/drainEvents, see
- * docs/02-architecture.md section 3.3) lands in M1.
+ * Raw JNI seam to the native audio engine; use [AudioEngine] instead of
+ * calling this directly. Signatures mirror docs/02-architecture.md
+ * section 3.3.
  */
-object NativeEngine {
+internal object NativeEngine {
     init {
         System.loadLibrary("deadaccurate_engine")
     }
 
-    fun version(): String = nativeGetVersion()
+    external fun nativeGetVersion(): String
 
-    private external fun nativeGetVersion(): String
+    external fun nativeCreate(): Long
+
+    /**
+     * Returns 0 on success or a negative AAudio result code.
+     * [deviceId] 0 lets the system route; [inputPreset] is an [InputPreset].
+     */
+    external fun nativeStart(handle: Long, deviceId: Int, inputPreset: Int): Int
+
+    external fun nativeStop(handle: Long)
+
+    external fun nativeDestroy(handle: Long)
+
+    /**
+     * Fills [out] with flat event records ([EventDecoder.EVENT_FLOATS] floats
+     * each) and returns the number of events written.
+     */
+    external fun nativeDrainEvents(handle: Long, out: FloatArray): Int
 }
