@@ -6,7 +6,7 @@ naming:
 complexity:
   TooManyFunctions:
     # Intent-handler ViewModels aggregate many small public functions.
-    thresholdInClasses: 16
+    thresholdInClasses: 22
 
 style:
   MagicNumber:

@@ -1,5 +1,7 @@
 package com.deadaccurate.app.ui
 
+import com.deadaccurate.app.settings.InputPreference
+
 /** User intents from the capture screen, grouped to keep signatures small. */
 data class CaptureActions(
     val onToggleCapture: () -> Unit,
@@ -8,4 +10,6 @@ data class CaptureActions(
     val onSetBphOverride: (Int?) -> Unit,
     val onSetGateTrim: (Float) -> Unit,
     val onRecalibrate: () -> Unit,
+    val onSetInputPreference: (InputPreference) -> Unit,
+    val onDismissOnboarding: () -> Unit,
 )

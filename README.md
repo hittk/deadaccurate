@@ -9,20 +9,23 @@ signature from background noise.
 
 ## Status
 
-**M3 — beat-rate auto-detection and rate readout (code-complete).** The
-whole v1 measurement chain now runs end to end: band-pass → envelope →
-auto-calibrating noise gate → tick detection → beat-rate identification
-(auto-lock with hysteresis across the six standard rates, manual override)
-→ robust rate regression with unwrapped phase tracking and MAD outlier
-rejection. The UI shows the headline ±s/day readout (greyed until the
-estimation window is trustworthy), the locked/pinned/searching status, an
-Auto + override rate selector, and dims rejected outlier dots on the tape.
+**M4 — v1 code-complete.** All planned v1 functionality is implemented
+and verified in software: the full measurement chain (band-pass →
+envelope → auto-calibrating noise gate → tick detection → beat-rate
+auto-lock → robust s/day regression), the live tape and rate readout,
+DataStore-persisted settings (gate trim, rate override, input preference,
+onboarding), the input selector with wired/built-in switching, the
+no-ticks hint, permission-revocation handling, first-run hardware
+guidance with the honest audio-clock accuracy disclosure, and dynamic
+Material You theming. Debug and minified release builds, 17 JVM tests,
+45 host C++ golden tests, and detekt are all green.
 
-The M3 acceptance bar is enforced by golden tests: from raw synthetic
-audio, all six standard rates auto-lock and a 20 ppm rate error reads
-within ±0.3 s/day. Pending hardware verification: cross-check against a
-commercial timegrapher (limited by the device audio clock — see
-docs/03-signal-processing.md §7). M4 (persistence and polish) is next.
+What separates code-complete from **v1 done** (docs/04-milestones.md) is
+hardware verification: live level from the piezo-TRRS rig with the
+unprocessed preset confirmed, a real movement drawing a clean trace, and
+a rate cross-check against a commercial timegrapher within the audio
+clock's error budget. Stretch work (M5): beat error, clock calibration,
+amplitude, export.
 
 ### Building
 

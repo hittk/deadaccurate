@@ -21,17 +21,19 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.deadaccurate.app.TimegrapherUiState
 import com.deadaccurate.app.TimegrapherViewModel
+import com.deadaccurate.app.settings.InputPreference
 
 @Composable
 fun TimegrapherScreen(viewModel: TimegrapherViewModel = viewModel()) {
@@ -42,7 +44,9 @@ fun TimegrapherScreen(viewModel: TimegrapherViewModel = viewModel()) {
         ActivityResultContracts.RequestPermission(),
         viewModel::onPermissionResult,
     )
-    LaunchedEffect(Unit) {
+    // Checked on every resume so a permission revoked in system settings is
+    // noticed (architecture §6).
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         val granted = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.RECORD_AUDIO,
@@ -56,6 +60,8 @@ fun TimegrapherScreen(viewModel: TimegrapherViewModel = viewModel()) {
         onSetBphOverride = viewModel::setBphOverride,
         onSetGateTrim = viewModel::setGateTrimDb,
         onRecalibrate = viewModel::recalibrateGate,
+        onSetInputPreference = viewModel::setInputPreference,
+        onDismissOnboarding = viewModel::dismissOnboarding,
     )
 
     Scaffold { innerPadding ->
@@ -108,7 +114,10 @@ private fun CaptureContent(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("DeadAccurate", style = MaterialTheme.typography.headlineMedium)
-        InputChip(state.wiredInputName)
+        InputSelector(state, actions.onSetInputPreference)
+        if (!state.onboardingDismissed) {
+            OnboardingCard(onDismiss = actions.onDismissOnboarding)
+        }
         Notices(state, actions.onDismissInputLost)
 
         RateReadout(state)
@@ -142,6 +151,13 @@ private fun Notices(state: TimegrapherUiState, onDismissInputLost: () -> Unit) {
                 "Reconnect it and start again.",
             actionLabel = "Dismiss",
             onAction = onDismissInputLost,
+        )
+    }
+    if (state.noTicksHint) {
+        NoticeCard(
+            text = "No ticks are clearing the noise gate. Try lowering the " +
+                "gate trim, repositioning the watch on the microphone, or " +
+                "recalibrating.",
         )
     }
     if (!state.unprocessedSupported) {
@@ -187,14 +203,32 @@ private fun StreamInfoFooter(state: TimegrapherUiState) {
 }
 
 @Composable
-private fun InputChip(wiredInputName: String?) {
-    val label =
-        if (wiredInputName != null) {
-            "Input: wired mic ($wiredInputName)"
-        } else {
-            "Input: built-in microphone — connect a piezo mic for best results"
+private fun InputSelector(
+    state: TimegrapherUiState,
+    onSetInputPreference: (InputPreference) -> Unit,
+) {
+    val wired = state.wiredInputName
+    val usingBuiltIn =
+        state.inputPreference == InputPreference.BUILT_IN || wired == null
+    val label = when {
+        !usingBuiltIn -> "Input: wired mic ($wired)"
+        wired != null -> "Input: built-in microphone"
+        else -> "Input: built-in microphone — connect a piezo mic for best results"
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        if (wired != null) {
+            TextButton(
+                onClick = {
+                    onSetInputPreference(
+                        if (usingBuiltIn) InputPreference.AUTO else InputPreference.BUILT_IN,
+                    )
+                },
+            ) {
+                Text(if (usingBuiltIn) "Use wired" else "Use built-in")
+            }
         }
-    Text(label, style = MaterialTheme.typography.bodyMedium)
+    }
 }
 
 @Composable
