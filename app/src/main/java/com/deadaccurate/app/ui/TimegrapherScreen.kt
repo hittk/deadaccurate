@@ -62,6 +62,7 @@ fun TimegrapherScreen(viewModel: TimegrapherViewModel = viewModel()) {
         onRecalibrate = viewModel::recalibrateGate,
         onSetInputPreference = viewModel::setInputPreference,
         onDismissOnboarding = viewModel::dismissOnboarding,
+        onReplayFile = viewModel::replayFile,
     )
 
     Scaffold { innerPadding ->
@@ -139,6 +140,7 @@ private fun CaptureContent(
         Button(onClick = actions.onToggleCapture, modifier = Modifier.fillMaxWidth()) {
             Text(if (state.capturing) "Stop" else "Start listening")
         }
+        ReplayButton(onReplayFile = actions.onReplayFile)
         StreamInfoFooter(state)
     }
 }
@@ -169,6 +171,22 @@ private fun Notices(state: TimegrapherUiState, onDismissInputLost: () -> Unit) {
     state.startErrorCode?.let { code ->
         NoticeCard(text = "Couldn't start audio capture (error $code).")
     }
+    state.replayError?.let { message ->
+        NoticeCard(text = "Recording analysis failed: $message")
+    }
+}
+
+@Composable
+private fun ReplayButton(onReplayFile: (android.net.Uri) -> Unit) {
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> uri?.let(onReplayFile) }
+    TextButton(
+        onClick = { picker.launch(arrayOf("audio/*", "application/octet-stream")) },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text("Analyze a recording (WAV)…")
+    }
 }
 
 @Composable
@@ -190,16 +208,18 @@ private fun MeterSection(state: TimegrapherUiState) {
 
 @Composable
 private fun StreamInfoFooter(state: TimegrapherUiState) {
-    state.streamInfo?.let { info ->
-        Text(
-            listOfNotNull(
+    val info = state.streamInfo ?: return
+    val text =
+        if (state.replayFileName != null) {
+            "${info.sampleRate} Hz • replay: ${state.replayFileName}"
+        } else {
+            listOf(
                 "${info.sampleRate} Hz",
                 if (info.unprocessed) "unprocessed" else "voice-recognition",
                 if (info.exclusiveMode) "exclusive" else "shared",
-            ).joinToString(" • "),
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
+            ).joinToString(" • ")
+        }
+    Text(text, style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable

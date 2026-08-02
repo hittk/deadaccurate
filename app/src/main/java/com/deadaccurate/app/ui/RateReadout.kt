@@ -44,7 +44,7 @@ fun RateReadout(state: TimegrapherUiState, modifier: Modifier = Modifier) {
 }
 
 private fun statusLine(state: TimegrapherUiState): String = when {
-    !state.capturing -> "stopped"
+    !state.capturing && state.replayFileName == null -> "stopped"
     state.bphOverride != null ->
         "pinned ${state.bphOverride} bph • ${state.rateTickCount} ticks"
     state.activeBph > 0 ->

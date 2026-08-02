@@ -1,5 +1,6 @@
 package com.deadaccurate.app.ui
 
+import android.net.Uri
 import com.deadaccurate.app.settings.InputPreference
 
 /** User intents from the capture screen, grouped to keep signatures small. */
@@ -12,4 +13,5 @@ data class CaptureActions(
     val onRecalibrate: () -> Unit,
     val onSetInputPreference: (InputPreference) -> Unit,
     val onDismissOnboarding: () -> Unit,
+    val onReplayFile: (Uri) -> Unit,
 )

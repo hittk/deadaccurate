@@ -5,8 +5,12 @@ import android.media.AudioManager
 import androidx.core.content.getSystemService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import android.net.Uri
 import com.deadaccurate.app.audio.AudioInputMonitor
+import com.deadaccurate.app.replay.ReplayAnalyzer
+import com.deadaccurate.app.replay.WavReader
 import com.deadaccurate.app.settings.InputPreference
+import java.io.IOException
 import com.deadaccurate.app.settings.SettingsRepository
 import com.deadaccurate.app.settings.settingsDataStore
 import com.deadaccurate.app.trace.TraceComputer
@@ -56,6 +60,9 @@ data class TimegrapherUiState(
     val unprocessedSupported: Boolean = true,
     val streamInfo: StreamInfo? = null,
     val startErrorCode: Int? = null,
+    /** Name of the WAV being (or last) analyzed offline; null = live mode. */
+    val replayFileName: String? = null,
+    val replayError: String? = null,
 ) {
     companion object {
         const val SILENCE_DB = -120f
@@ -71,6 +78,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
     private val inputMonitor = AudioInputMonitor(audioManager)
     private val engine = AudioEngine()
     private val settingsRepository = SettingsRepository(application.settingsDataStore)
+    private val replayAnalyzer = ReplayAnalyzer(application.contentResolver)
 
     private val _uiState = MutableStateFlow(
         TimegrapherUiState(unprocessedSupported = unprocessedSourceSupported()),
@@ -158,6 +166,60 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         engine.recalibrateGate()
     }
 
+    /** Analyzes a recorded WAV through the same chain as live capture. */
+    fun replayFile(uri: Uri) {
+        if (_uiState.value.capturing) stopCapture()
+        viewModelScope.launch {
+            clearAnalysis()
+            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "recording"
+            _uiState.update { it.copy(replayFileName = name, replayError = null) }
+            try {
+                replayAnalyzer.analyze(
+                    uri = uri,
+                    bphOverride = _uiState.value.bphOverride ?: 0,
+                    gateTrimDb = _uiState.value.gateTrimDb,
+                    onStart = { sampleRate ->
+                        _uiState.update {
+                            it.copy(
+                                streamInfo = StreamInfo(
+                                    sampleRate = sampleRate,
+                                    unprocessed = false,
+                                    exclusiveMode = false,
+                                ),
+                            )
+                        }
+                    },
+                    onEvent = ::onEngineEvent,
+                )
+            } catch (e: WavReader.UnsupportedWavException) {
+                _uiState.update { it.copy(replayError = e.message) }
+            } catch (e: IOException) {
+                _uiState.update {
+                    it.copy(replayError = e.message ?: "Could not read the recording")
+                }
+            }
+        }
+    }
+
+    private fun clearAnalysis() {
+        traceBph = 0
+        traceComputer = null
+        traceBuffer.clear()
+        levelsSinceTick = 0
+        _uiState.update {
+            it.copy(
+                tracePoints = emptyList(),
+                activeBph = 0,
+                rateLocked = false,
+                rateValid = false,
+                beatErrorMs = null,
+                rateTickCount = 0,
+                noTicksHint = false,
+                streamInfo = null,
+            )
+        }
+    }
+
     private fun startCapture() {
         val deviceId =
             if (_uiState.value.inputPreference == InputPreference.BUILT_IN) {
@@ -185,13 +247,14 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         eventJob = viewModelScope.launch {
             engine.events.collect(::onEngineEvent)
         }
-        levelsSinceTick = 0
+        clearAnalysis()
         _uiState.update {
             it.copy(
                 capturing = true,
                 inputLost = false,
-                noTicksHint = false,
                 startErrorCode = null,
+                replayFileName = null,
+                replayError = null,
             )
         }
     }

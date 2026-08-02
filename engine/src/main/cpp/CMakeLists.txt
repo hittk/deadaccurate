@@ -8,6 +8,7 @@ add_subdirectory(core)
 
 add_library(deadaccurate_engine SHARED
     jni/EngineJni.cpp
+    jni/ReplayJni.cpp
     platform/CaptureEngine.cpp
 )
 
