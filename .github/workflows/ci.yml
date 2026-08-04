@@ -30,6 +30,13 @@ jobs:
       - name: Detekt
         run: ./gradlew detekt
 
+      # Every run publishes an installable build: Actions -> run -> Artifacts.
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: deadaccurate-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+
   host-dsp:
     name: Host DSP tests (C++)
     runs-on: ubuntu-latest
