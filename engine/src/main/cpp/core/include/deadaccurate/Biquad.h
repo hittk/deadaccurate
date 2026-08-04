@@ -47,4 +47,21 @@ private:
     Biquad lowPass_;
 };
 
+// Two cascaded BandPassFilters: 4th-order skirts. The correlation bands
+// need this — on real phone recordings the sub-kHz rumble sits 25 dB above
+// the tick band, and 2nd-order roll-off leaks enough of it to bury the
+// fold score.
+class SteepBandPassFilter {
+public:
+    SteepBandPassFilter(double sampleRate, double lowCutHz, double highCutHz)
+        : first_(sampleRate, lowCutHz, highCutHz),
+          second_(sampleRate, lowCutHz, highCutHz) {}
+
+    float Process(float x) { return second_.Process(first_.Process(x)); }
+
+private:
+    BandPassFilter first_;
+    BandPassFilter second_;
+};
+
 }  // namespace deadaccurate

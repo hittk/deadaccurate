@@ -21,10 +21,12 @@ add_executable(core_tests
     tests/DspChainTest.cpp
     tests/BeatRateDetectorTest.cpp
     tests/RateEstimatorTest.cpp
+    tests/RealRecordingTest.cpp
     tests/VersionTest.cpp
     tests/TestMain.cpp
 )
 target_link_libraries(core_tests PRIVATE deadaccurate_core)
+target_compile_definitions(core_tests PRIVATE FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 target_compile_options(core_tests PRIVATE -Wall -Wextra -Werror)
 
 add_test(NAME core_tests COMMAND core_tests)
@@ -32,4 +34,7 @@ add_test(NAME core_tests COMMAND core_tests)
 # Offline harness for analyzing real recordings (not a test).
 add_executable(analyze_wav tools/analyze_wav.cpp)
 target_link_libraries(analyze_wav PRIVATE deadaccurate_core)
+
+add_executable(debug_fold tools/debug_fold.cpp)
+target_link_libraries(debug_fold PRIVATE deadaccurate_core)
 target_compile_options(analyze_wav PRIVATE -Wall -Wextra -Werror)

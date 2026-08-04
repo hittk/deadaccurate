@@ -1,19 +1,26 @@
 #include "deadaccurate/DspChain.h"
 
+#include <algorithm>
+#include <cmath>
+
 namespace deadaccurate {
 
 DspChain::DspChain(int sampleRate)
     : sampleRate_(sampleRate),
       bandPass_(sampleRate, kBandLowHz, kBandHighHz),
       envelope_(sampleRate, kAttackMs, kReleaseMs),
-      bandPassWide_(sampleRate, kWideBandLowHz, kWideBandHighHz),
-      envelopeWide_(sampleRate, kAttackMs, kReleaseMs),
       gate_(sampleRate),
       tickDetector_(sampleRate),
       levelAnalyzer_(static_cast<size_t>(sampleRate / kLevelFramesPerSecond)),
       rateDetector_(sampleRate),
       rateEstimator_(sampleRate),
-      folding_(sampleRate) {}
+      folding_(sampleRate) {
+    for (int c = 0; c < FoldingAnalyzer::kChannels; ++c) {
+        // Clamp band tops below Nyquist for low device sample rates.
+        const double hi = std::min(kCorrBandEdgesHz[c + 1], sampleRate * 0.45);
+        corrBands_.emplace_back(sampleRate, kCorrBandEdgesHz[c], hi);
+    }
+}
 
 void DspChain::SetBphOverride(int bph) {
     overrideBph_ = bph > 0 ? bph : 0;
@@ -82,10 +89,13 @@ void DspChain::Process(const float* samples, size_t count, Output& out) {
             }
         }
 
-        // Correlation path: likewise always fed, from its own wider band.
-        const float wideEnv = envelopeWide_.Process(bandPassWide_.Process(samples[i]));
+        // Correlation path: likewise always fed, one envelope per band.
+        float corrEnv[FoldingAnalyzer::kChannels];
+        for (int c = 0; c < FoldingAnalyzer::kChannels; ++c) {
+            corrEnv[c] = std::fabs(corrBands_[static_cast<size_t>(c)].Process(samples[i]));
+        }
         FoldingAnalyzer::Snapshot snapshot;
-        if (folding_.Push(&wideEnv, 1, &snapshot) &&
+        if (folding_.Push(corrEnv, &snapshot) &&
             mode_ == AnalysisMode::kCorrelation) {
             out.rates.push_back({
                 snapshot.activeBph,

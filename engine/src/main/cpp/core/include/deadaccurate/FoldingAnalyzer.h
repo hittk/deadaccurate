@@ -9,14 +9,20 @@
 namespace deadaccurate {
 
 // Low-SNR analysis ("correlation mode"): instead of deciding per tick
-// whether the envelope crossed a gate, the envelope's energy is folded by
-// candidate beat periods. Hundreds of beats integrate coherently — ticks
-// stack into a profile peak while noise averages flat — so the beat rate,
-// rate deviation, and beat error are recoverable when individual ticks are
-// only a few dB above ambient (a phone microphone behind AGC). The trade
-// is latency: estimates firm up over tens of seconds instead of per tick.
+// whether the envelope crossed a gate, energy is folded by candidate beat
+// periods so hundreds of beats integrate coherently — ticks stack into a
+// profile peak while noise averages flat. Works when individual ticks are
+// only a few dB above ambient (a phone microphone). The trade is latency:
+// estimates firm up over tens of seconds instead of per tick.
+//
+// Multiband: tick energy lands in different bands on different hardware —
+// a real phone-mic recording put it at 8-16 kHz while room noise dominated
+// below 3 kHz. The analyzer takes several band-limited envelope channels,
+// scores every candidate rate in every channel, and locks on the best.
 class FoldingAnalyzer {
 public:
+    static constexpr int kChannels = 3;
+
     struct Snapshot {
         int activeBph = 0;    // override or folding lock; 0 = searching
         int detectedBph = 0;  // folding lock (keeps reporting under override)
@@ -35,25 +41,31 @@ public:
     // Positive pins the rate; 0 returns to automatic identification.
     void SetBphOverride(int bph);
 
-    // Feed post-envelope samples. Returns true when a fresh snapshot is
-    // ready (every ~0.5 s of audio) and fills *out.
-    bool Push(const float* envelope, size_t count, Snapshot* out);
+    // Feed one sample of each band-limited envelope channel. Returns true
+    // when a fresh snapshot is ready (every ~0.5 s) and fills *out.
+    bool Push(const float* channelEnvelopes, Snapshot* out);
+
+    // Diagnostic: the current fold score for a rate in one channel.
+    double ScoreForDebug(int bph, int channel) const;
 
 private:
     struct Score {
         int bph = 0;
         double value = 0.0;
+        int channel = 0;
     };
 
-    void AddBin(float meanEnvelope);
+    void AddBin();
     void EvaluateLock();
-    // Folds recent history at periodMs into `profile`; returns false while
-    // there is too little history.
-    bool FoldProfile(double periodMs, std::array<double, 64>& profile) const;
-    double ScorePeriod(double periodMs) const;
+    // Folds channel history at periodMs into `profile` (kScoreSlots wide);
+    // returns false while there is too little history.
+    bool FoldProfile(int channel, double periodMs,
+                     std::array<double, 64>& profile) const;
+    Score ScorePeriod(int bph) const;
+    double ScoreChannel(int channel, double periodMs) const;
     // True when folding at twice the period shows a single peak — i.e. the
     // real beat period is 2x and this candidate is a half-period alias.
-    bool HalfPeriodAlias(double periodMs) const;
+    bool HalfPeriodAlias(int channel, double periodMs) const;
     void ResetProfiles();
     void UpdateProfiles(double binTimeMs, float centered);
     void TakeSnapshot();
@@ -62,8 +74,7 @@ private:
 
     // --- binning ---
     static constexpr double kBinMs = 1.0;
-    static constexpr int kWindowBins = 16000;   // 16 s scoring history
-    static constexpr int kScoreBins = 8000;     // 8 s used per evaluation
+    static constexpr int kWindowBins = 30000;   // 30 s scoring history
     static constexpr int kSnapshotBins = 500;   // snapshot every 0.5 s
     // Fast mean-removal: real phone input pumps with AGC at sub-hertz
     // rates, which would otherwise inflate the fold profile's sigma and
@@ -71,7 +82,12 @@ private:
     static constexpr double kMeanSeconds = 0.5;
 
     // --- fold scoring / lock ---
+    // The fold profile is a per-slot MEAN, and ticks are narrower than a
+    // slot: finer slots concentrate the peak (score grows ~sqrt(slots) up
+    // to the tick width). 64 slots ~= 2 ms at 28800 bph, about tick width.
+    static constexpr int kScoreSlots = 64;
     static constexpr int kProfileSlots = 64;
+    static constexpr int kMinScoreBins = 2000;
     static constexpr double kLockScore = 6.0;
     static constexpr double kLockMargin = 1.3;   // best/runner-up ratio
     static constexpr int kLockStreak = 2;
@@ -101,14 +117,13 @@ private:
     const int binSize_;
     const float meanAlpha_;
 
-    // bin accumulation
-    float binSum_ = 0.0f;
+    // per-channel bin accumulation and centered-energy history (rings)
+    std::array<float, kChannels> binSum_{};
+    std::array<float, kChannels> runningMean_{};
+    std::array<float, kChannels> lastCentered_{};
+    std::array<std::vector<float>, kChannels> history_;
     int binFill_ = 0;
     int64_t binIndex_ = 0;
-    float runningMean_ = 0.0f;
-
-    // centered energy history (ring)
-    std::vector<float> history_;
     int64_t historyCount_ = 0;
 
     // lock state
@@ -118,8 +133,10 @@ private:
     int candidateStreak_ = 0;
     int activeBph_ = 0;
     double activePeriodMs_ = 0.0;
+    int profileChannel_ = 1;
+    bool channelChosen_ = false;
 
-    // fold profiles for the active period
+    // fold profiles for the active period (fine slots, chosen channel)
     std::array<double, kProfileSlots> profileP_{};
     std::array<double, 2 * kProfileSlots> profile2P_{};
     int64_t profileBins_ = 0;

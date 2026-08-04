@@ -177,3 +177,24 @@ on pure noise, and to resolve the 18000/36000 alias in both directions.
 Trade-off: readings settle over ~30 s instead of ~10 s, and per-tick
 outlier visibility is lost — which is why the edge path remains the piezo
 default.
+
+### 9b. Correlation-mode tuning against a real recording
+
+The first field recording (checked in as
+`engine/host/fixtures/phone_mic_28800.wav`, guarded by a regression test)
+reshaped the design:
+
+- **Multiband:** the movement's tick energy sat at **8–16 kHz** while room
+  rumble dominated below 3 kHz — a single wide band buried the ticks in
+  another band's noise. The analyzer now folds three band-limited channels
+  (0.8–3, 3–8, 8–16 kHz) and locks on whichever shows the rate best.
+- **Rectify, don't envelope:** the edge path's 5 ms-release envelope
+  follower smeared the weak ticks across fold slots; the correlation
+  channels now bin the rectified signal directly (the 1 ms bin-mean is the
+  smoother).
+- **Fine slots + pair scoring:** the fold profile is a per-slot mean, so
+  finer slots concentrate a narrow tick (score ∝ √slots up to tick width);
+  an adjacent-pair term keeps beat-error-split peaks from halving the
+  score. Scoring integrates up to 30 s.
+- The running mean is primed on the first bin so the start-up transient
+  can't inflate profile sigma for the whole window.

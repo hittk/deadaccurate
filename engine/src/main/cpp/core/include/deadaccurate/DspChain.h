@@ -84,11 +84,12 @@ private:
 
     static constexpr double kBandLowHz = 2000.0;
     static constexpr double kBandHighHz = 12000.0;
-    // The correlation path listens wider: phone input processing often
-    // leaves tick energy below 2 kHz, and folding tolerates the extra
-    // noise that the edge path's piezo-tuned band exists to reject.
-    static constexpr double kWideBandLowHz = 800.0;
-    static constexpr double kWideBandHighHz = 12000.0;
+    // The correlation path listens in bands: tick energy lands in different
+    // ranges on different hardware (a real phone-mic recording put it at
+    // 8-16 kHz with room noise below 3 kHz), and per-band folding keeps a
+    // quiet band's ticks from being swamped by a loud band's noise.
+    static constexpr double kCorrBandEdgesHz[FoldingAnalyzer::kChannels + 1] = {
+        800.0, 3000.0, 8000.0, 16000.0};
     static constexpr double kAttackMs = 0.5;
     static constexpr double kReleaseMs = 5.0;
     static constexpr int kLevelFramesPerSecond = 30;
@@ -98,8 +99,9 @@ private:
     const int sampleRate_;
     BandPassFilter bandPass_;
     EnvelopeFollower envelope_;
-    BandPassFilter bandPassWide_;
-    EnvelopeFollower envelopeWide_;
+    // No attack/release follower here: the analyzer's 1 ms bin-mean is the
+    // smoother, and a 5 ms release smears weak ticks across fold slots.
+    std::vector<SteepBandPassFilter> corrBands_;
     NoiseGate gate_;
     TickDetector tickDetector_;
     LevelAnalyzer levelAnalyzer_;

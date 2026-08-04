@@ -29,12 +29,53 @@ double WrapHalf(double value, double range) {
     return v;
 }
 
+struct ProfileStats {
+    double mean = 0.0;
+    double sd = 0.0;
+    int peak = 0;
+    double peakHeight = 0.0;
+    double secondHeight = 0.0;  // best peak >= minSlots away from `peak`
+};
+
+template <size_t N>
+ProfileStats Analyze(const std::array<double, N>& profile, int minSlots) {
+    ProfileStats stats;
+    for (const double f : profile) {
+        stats.mean += f;
+    }
+    stats.mean /= static_cast<double>(N);
+    double variance = 0.0;
+    for (const double f : profile) {
+        variance += (f - stats.mean) * (f - stats.mean);
+    }
+    stats.sd = std::sqrt(variance / static_cast<double>(N));
+    for (int k = 1; k < static_cast<int>(N); ++k) {
+        if (profile[static_cast<size_t>(k)] >
+            profile[static_cast<size_t>(stats.peak)]) {
+            stats.peak = k;
+        }
+    }
+    stats.peakHeight = profile[static_cast<size_t>(stats.peak)] - stats.mean;
+    for (int k = 0; k < static_cast<int>(N); ++k) {
+        const int distance = std::abs(k - stats.peak);
+        const int circular = std::min(distance, static_cast<int>(N) - distance);
+        if (circular >= minSlots) {
+            stats.secondHeight = std::max(
+                stats.secondHeight, profile[static_cast<size_t>(k)] - stats.mean);
+        }
+    }
+    return stats;
+}
+
 }  // namespace
 
 FoldingAnalyzer::FoldingAnalyzer(int sampleRate)
     : binSize_(static_cast<int>(sampleRate * kBinMs / 1000.0)),
-      meanAlpha_(static_cast<float>(1.0 / (kMeanSeconds * 1000.0 / kBinMs))),
-      history_(kWindowBins, 0.0f) {}
+      meanAlpha_(static_cast<float>(1.0 / (kMeanSeconds * 1000.0 / kBinMs))) {
+    for (auto& channel : history_) {
+        channel.assign(kWindowBins, 0.0f);
+    }
+}
 
 void FoldingAnalyzer::SetBphOverride(int bph) {
     overrideBph_ = bph > 0 ? bph : 0;
@@ -42,164 +83,159 @@ void FoldingAnalyzer::SetBphOverride(int bph) {
     if (newActive != activeBph_) {
         activeBph_ = newActive;
         activePeriodMs_ = activeBph_ > 0 ? PeriodMsForBph(activeBph_) : 0.0;
+        channelChosen_ = false;
         ResetProfiles();
     }
 }
 
-bool FoldingAnalyzer::Push(const float* envelope, size_t count, Snapshot* out) {
-    bool ready = false;
-    for (size_t i = 0; i < count; ++i) {
-        binSum_ += envelope[i];
-        if (++binFill_ < binSize_) {
-            continue;
-        }
-        AddBin(binSum_ / static_cast<float>(binSize_));
-        binSum_ = 0.0f;
-        binFill_ = 0;
-        if (++binsSinceSnapshot_ >= kSnapshotBins) {
-            binsSinceSnapshot_ = 0;
-            EvaluateLock();
-            TakeSnapshot();
-            ready = true;
-        }
+bool FoldingAnalyzer::Push(const float* channelEnvelopes, Snapshot* out) {
+    for (int c = 0; c < kChannels; ++c) {
+        binSum_[static_cast<size_t>(c)] += channelEnvelopes[c];
     }
-    if (ready) {
-        *out = snapshot_;
-    }
-    return ready;
-}
-
-void FoldingAnalyzer::AddBin(float meanEnvelope) {
-    runningMean_ += meanAlpha_ * (meanEnvelope - runningMean_);
-    const float centered = meanEnvelope - runningMean_;
-    history_[static_cast<size_t>(binIndex_ % kWindowBins)] = centered;
-    ++historyCount_;
-    const auto binTimeMs = static_cast<double>(binIndex_) * kBinMs;
-    ++binIndex_;
-    if (activePeriodMs_ > 0.0) {
-        UpdateProfiles(binTimeMs, centered);
-    }
-}
-
-bool FoldingAnalyzer::FoldProfile(double periodMs,
-                                  std::array<double, 64>& profile) const {
-    const int64_t available = std::min<int64_t>(historyCount_, kScoreBins);
-    if (available < 2000) {
+    if (++binFill_ < binSize_) {
         return false;
     }
-    std::array<double, kProfileSlots> sum{};
-    std::array<int, kProfileSlots> count{};
+    binFill_ = 0;
+    AddBin();
+    if (++binsSinceSnapshot_ < kSnapshotBins) {
+        return false;
+    }
+    binsSinceSnapshot_ = 0;
+    EvaluateLock();
+    TakeSnapshot();
+    *out = snapshot_;
+    return true;
+}
+
+void FoldingAnalyzer::AddBin() {
+    const auto binTimeMs = static_cast<double>(binIndex_) * kBinMs;
+    for (int c = 0; c < kChannels; ++c) {
+        const auto cs = static_cast<size_t>(c);
+        const float value = binSum_[cs] / static_cast<float>(binSize_);
+        binSum_[cs] = 0.0f;
+        // Prime on the first bin: a mean ramping up from zero would leave a
+        // large positive transient in the history for the whole 30 s
+        // window, inflating every profile's sigma.
+        if (binIndex_ == 0) {
+            runningMean_[cs] = value;
+        }
+        runningMean_[cs] += meanAlpha_ * (value - runningMean_[cs]);
+        const float centered = value - runningMean_[cs];
+        lastCentered_[cs] = centered;
+        history_[cs][static_cast<size_t>(binIndex_ % kWindowBins)] = centered;
+    }
+    ++historyCount_;
+    ++binIndex_;
+    if (activePeriodMs_ > 0.0 && channelChosen_) {
+        UpdateProfiles(binTimeMs, lastCentered_[static_cast<size_t>(profileChannel_)]);
+    }
+}
+
+bool FoldingAnalyzer::FoldProfile(int channel, double periodMs,
+                                  std::array<double, 64>& profile) const {
+    const int64_t available = std::min<int64_t>(historyCount_, kWindowBins);
+    if (available < kMinScoreBins) {
+        return false;
+    }
+    const auto& history = history_[static_cast<size_t>(channel)];
+    std::array<double, kScoreSlots> sum{};
+    std::array<int, kScoreSlots> count{};
     const int64_t firstBin = binIndex_ - available;
     for (int64_t n = firstBin; n < binIndex_; ++n) {
         const double t = static_cast<double>(n) * kBinMs;
         const double phase = std::fmod(t, periodMs) / periodMs;
-        const auto slot = std::min<int>(static_cast<int>(phase * kProfileSlots),
-                                        kProfileSlots - 1);
-        sum[static_cast<size_t>(slot)] +=
-            history_[static_cast<size_t>(n % kWindowBins)];
+        const auto slot =
+            std::min<int>(static_cast<int>(phase * kScoreSlots), kScoreSlots - 1);
+        sum[static_cast<size_t>(slot)] += history[static_cast<size_t>(n % kWindowBins)];
         ++count[static_cast<size_t>(slot)];
     }
-    for (int k = 0; k < kProfileSlots; ++k) {
+    for (int k = 0; k < kScoreSlots; ++k) {
         const auto ks = static_cast<size_t>(k);
         profile[ks] = count[ks] > 0 ? sum[ks] / count[ks] : 0.0;
     }
     return true;
 }
 
-double FoldingAnalyzer::ScorePeriod(double periodMs) const {
-    std::array<double, kProfileSlots> profile{};
-    if (!FoldProfile(periodMs, profile)) {
+double FoldingAnalyzer::ScoreChannel(int channel, double periodMs) const {
+    std::array<double, kScoreSlots> profile{};
+    if (!FoldProfile(channel, periodMs, profile)) {
         return 0.0;
     }
-    double mean = 0.0;
-    for (const double f : profile) {
-        mean += f;
-    }
-    mean /= kProfileSlots;
-    double variance = 0.0;
-    for (const double f : profile) {
-        variance += (f - mean) * (f - mean);
-    }
-    const double sd = std::sqrt(variance / kProfileSlots);
-    if (sd < 1e-12) {
+    const ProfileStats stats = Analyze(profile, kDoublePeakMinSlots);
+    if (stats.sd < 1e-12) {
         return 0.0;
     }
+    double score = stats.peakHeight / stats.sd;
 
-    int peak = 0;
-    for (int k = 1; k < kProfileSlots; ++k) {
-        if (profile[static_cast<size_t>(k)] > profile[static_cast<size_t>(peak)]) {
-            peak = k;
-        }
+    // Beat error splits the peak across two adjacent slots; the best
+    // adjacent-pair mean recovers the full height (pair variance is sd²/2,
+    // hence the sqrt(2) normalization). A compact peak keeps the higher
+    // single-slot score.
+    double bestPair = 0.0;
+    for (int k = 0; k < kScoreSlots; ++k) {
+        const double pair =
+            (profile[static_cast<size_t>(k)] +
+             profile[static_cast<size_t>((k + 1) % kScoreSlots)]) / 2.0 -
+            stats.mean;
+        bestPair = std::max(bestPair, pair);
     }
-    const double peakHeight = profile[static_cast<size_t>(peak)] - mean;
-    double score = peakHeight / sd;
+    score = std::max(score, bestPair * std::sqrt(2.0) / stats.sd);
 
     // Double-peak penalty: a comparable second peak far from the first means
     // ticks arrive twice per candidate period — the true period is shorter.
-    double secondHeight = 0.0;
-    for (int k = 0; k < kProfileSlots; ++k) {
-        const int distance = std::abs(k - peak);
-        const int circular = std::min(distance, kProfileSlots - distance);
-        if (circular >= kDoublePeakMinSlots) {
-            secondHeight =
-                std::max(secondHeight, profile[static_cast<size_t>(k)] - mean);
-        }
-    }
-    if (secondHeight > kDoublePeakFraction * peakHeight) {
+    if (stats.secondHeight > kDoublePeakFraction * stats.peakHeight) {
         score *= 0.5;
     }
     return score;
 }
 
-bool FoldingAnalyzer::HalfPeriodAlias(double periodMs) const {
-    std::array<double, kProfileSlots> profile{};
-    if (!FoldProfile(2.0 * periodMs, profile)) {
+double FoldingAnalyzer::ScoreForDebug(int bph, int channel) const {
+    return ScoreChannel(channel, PeriodMsForBph(bph));
+}
+
+FoldingAnalyzer::Score FoldingAnalyzer::ScorePeriod(int bph) const {
+    const double periodMs = PeriodMsForBph(bph);
+    Score best{bph, 0.0, 0};
+    for (int c = 0; c < kChannels; ++c) {
+        const double score = ScoreChannel(c, periodMs);
+        if (score > best.value) {
+            best.value = score;
+            best.channel = c;
+        }
+    }
+    if (best.value > kAliasMinScore && HalfPeriodAlias(best.channel, periodMs)) {
+        best.value *= kAliasPenalty;
+    }
+    return best;
+}
+
+bool FoldingAnalyzer::HalfPeriodAlias(int channel, double periodMs) const {
+    std::array<double, kScoreSlots> profile{};
+    if (!FoldProfile(channel, 2.0 * periodMs, profile)) {
         return false;
     }
-    double mean = 0.0;
-    for (const double f : profile) {
-        mean += f;
-    }
-    mean /= kProfileSlots;
-    int peak = 0;
-    for (int k = 1; k < kProfileSlots; ++k) {
-        if (profile[static_cast<size_t>(k)] > profile[static_cast<size_t>(peak)]) {
-            peak = k;
-        }
-    }
-    double secondHeight = 0.0;
-    for (int k = 0; k < kProfileSlots; ++k) {
-        const int distance = std::abs(k - peak);
-        const int circular = std::min(distance, kProfileSlots - distance);
-        if (circular >= kDoublePeakMinSlots) {
-            secondHeight =
-                std::max(secondHeight, profile[static_cast<size_t>(k)] - mean);
-        }
-    }
-    const double peakHeight = profile[static_cast<size_t>(peak)] - mean;
+    const ProfileStats stats = Analyze(profile, kDoublePeakMinSlots);
     // A true period shows the two alternating beats at the 2x fold; a
     // single peak means every beat lands together — the real period is 2x.
-    return peakHeight > 0.0 && secondHeight < kAliasSecondPeakFraction * peakHeight;
+    return stats.peakHeight > 0.0 &&
+           stats.secondHeight < kAliasSecondPeakFraction * stats.peakHeight;
 }
 
 void FoldingAnalyzer::EvaluateLock() {
     Score best;
     Score runnerUp;
     for (const int bph : kStandardRatesBph) {
-        double score = ScorePeriod(PeriodMsForBph(bph));
-        if (score > kAliasMinScore && HalfPeriodAlias(PeriodMsForBph(bph))) {
-            score *= kAliasPenalty;
-        }
-        if (score > best.value) {
+        const Score score = ScorePeriod(bph);
+        if (score.value > best.value) {
             runnerUp = best;
-            best = {bph, score};
-        } else if (score > runnerUp.value) {
-            runnerUp = {bph, score};
+            best = score;
+        } else if (score.value > runnerUp.value) {
+            runnerUp = score;
         }
     }
 
     if (lockedBph_ != 0) {
-        if (ScorePeriod(PeriodMsForBph(lockedBph_)) < kUnlockScore) {
+        if (ScorePeriod(lockedBph_).value < kUnlockScore) {
             lockedBph_ = 0;
             candidateBph_ = 0;
             candidateStreak_ = 0;
@@ -220,6 +256,24 @@ void FoldingAnalyzer::EvaluateLock() {
     if (newActive != activeBph_) {
         activeBph_ = newActive;
         activePeriodMs_ = activeBph_ > 0 ? PeriodMsForBph(activeBph_) : 0.0;
+        channelChosen_ = false;
+        ResetProfiles();
+    }
+
+    // Pick (once per activation) the channel where the active period shows
+    // best — profiles and phase tracking read that channel only.
+    if (activeBph_ > 0 && !channelChosen_ && historyCount_ >= kMinScoreBins) {
+        int bestChannel = 0;
+        double bestScore = -1.0;
+        for (int c = 0; c < kChannels; ++c) {
+            const double score = ScoreChannel(c, activePeriodMs_);
+            if (score > bestScore) {
+                bestScore = score;
+                bestChannel = c;
+            }
+        }
+        profileChannel_ = bestChannel;
+        channelChosen_ = true;
         ResetProfiles();
     }
 }
