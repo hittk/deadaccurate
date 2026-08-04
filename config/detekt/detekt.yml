@@ -6,10 +6,10 @@ naming:
 complexity:
   TooManyFunctions:
     # Intent-handler ViewModels aggregate many small public functions.
-    thresholdInClasses: 22
+    thresholdInClasses: 28
   LongParameterList:
     # CaptureActions groups every screen intent into one data class.
-    constructorThreshold: 10
+    constructorThreshold: 14
 
 style:
   MagicNumber:

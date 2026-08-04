@@ -15,6 +15,9 @@ import kotlinx.coroutines.withContext
  */
 class ReplayAnalyzer(private val contentResolver: ContentResolver) {
 
+    /** Chain settings applied before the offline run. */
+    data class Config(val bphOverride: Int, val gateTrimDb: Float)
+
     /**
      * Parses [uri], then streams it through a [ReplayEngine]. [onStart]
      * fires with the file's sample rate before any events; [onEvent]
@@ -23,25 +26,36 @@ class ReplayAnalyzer(private val contentResolver: ContentResolver) {
      */
     suspend fun analyze(
         uri: Uri,
-        bphOverride: Int,
-        gateTrimDb: Float,
+        config: Config,
+        onStart: (sampleRate: Int) -> Unit,
+        onEvent: (EngineEvent) -> Unit,
+    ) {
+        val bytes = withContext(Dispatchers.IO) {
+            contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: throw IOException("Could not open the recording")
+        }
+        val wav = WavReader.parse(bytes)
+        analyzeSamples(wav.sampleRate, wav.samples, config, onStart, onEvent)
+    }
+
+    /** Same pipeline for in-memory samples (the bundled demo movement). */
+    suspend fun analyzeSamples(
+        sampleRate: Int,
+        samples: FloatArray,
+        config: Config,
         onStart: (sampleRate: Int) -> Unit,
         onEvent: (EngineEvent) -> Unit,
     ) = withContext(Dispatchers.Default) {
-        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: throw IOException("Could not open the recording")
-        val wav = WavReader.parse(bytes)
-        onStart(wav.sampleRate)
-
-        ReplayEngine(wav.sampleRate).use { engine ->
-            engine.setBphOverride(bphOverride)
-            engine.setGateTrimDb(gateTrimDb)
+        onStart(sampleRate)
+        ReplayEngine(sampleRate).use { engine ->
+            engine.setBphOverride(config.bphOverride)
+            engine.setGateTrimDb(config.gateTrimDb)
 
             val chunk = FloatArray(ReplayEngine.CHUNK_FRAMES)
             var offset = 0
-            while (offset < wav.samples.size) {
-                val count = minOf(chunk.size, wav.samples.size - offset)
-                wav.samples.copyInto(chunk, 0, offset, offset + count)
+            while (offset < samples.size) {
+                val count = minOf(chunk.size, samples.size - offset)
+                samples.copyInto(chunk, 0, offset, offset + count)
                 engine.process(chunk, count).forEach(onEvent)
                 offset += count
             }

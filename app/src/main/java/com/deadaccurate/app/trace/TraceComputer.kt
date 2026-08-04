@@ -36,6 +36,9 @@ class TraceComputer(sampleRate: Int, bph: Int) {
     /** Half the beat period in ms — the trace's vertical half-range. */
     val halfPeriodMs: Float = (beatPeriodFrames / 2.0 / framesPerMs).toFloat()
 
+    /** Absolute time of the last added tick on the audio clock. */
+    val timestampMs: Double get() = timestampFrames / framesPerMs
+
     private companion object {
         const val SECONDS_PER_HOUR = 3600.0
         const val MS_PER_SECOND = 1000.0

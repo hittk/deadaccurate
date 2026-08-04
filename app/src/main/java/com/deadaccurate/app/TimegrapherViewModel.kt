@@ -7,6 +7,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import android.net.Uri
 import com.deadaccurate.app.audio.AudioInputMonitor
+import com.deadaccurate.app.export.SessionExporter
+import com.deadaccurate.app.export.SessionTick
+import com.deadaccurate.app.replay.DemoSignal
 import com.deadaccurate.app.replay.ReplayAnalyzer
 import com.deadaccurate.app.replay.WavReader
 import com.deadaccurate.app.settings.InputPreference
@@ -19,12 +22,14 @@ import com.deadaccurate.engine.AudioEngine
 import com.deadaccurate.engine.EngineEvent
 import com.deadaccurate.engine.EngineState
 import com.deadaccurate.engine.InputPreset
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class StreamInfo(
     val sampleRate: Int,
@@ -68,6 +73,8 @@ data class TimegrapherUiState(
     /** Name of the WAV being (or last) analyzed offline; null = live mode. */
     val replayFileName: String? = null,
     val replayError: String? = null,
+    /** Set when an export is ready; the screen launches the share sheet. */
+    val exportUri: Uri? = null,
 ) {
     /** What the readout shows: measurement plus the clock correction. */
     val correctedSecPerDay: Float get() = secPerDay + clockCalSecPerDay
@@ -106,6 +113,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
     private var traceComputer: TraceComputer? = null
     private var traceBph = 0
     private val traceBuffer = ArrayDeque<TracePoint>()
+    private val sessionTicks = ArrayDeque<SessionTick>()
     private var levelsSinceTick = 0
 
     init {
@@ -199,29 +207,58 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
 
     /** Analyzes a recorded WAV through the same chain as live capture. */
     fun replayFile(uri: Uri) {
+        val name = uri.lastPathSegment?.substringAfterLast('/') ?: "recording"
+        analyzeOffline(name) { onStart ->
+            replayAnalyzer.analyze(
+                uri = uri,
+                config = ReplayAnalyzer.Config(
+                    bphOverride = _uiState.value.bphOverride ?: 0,
+                    gateTrimDb = _uiState.value.gateTrimDb,
+                ),
+                onStart = onStart,
+                onEvent = ::onEngineEvent,
+            )
+        }
+    }
+
+    /** Runs the bundled synthetic movement — a zero-hardware demo. */
+    fun runDemo() {
+        analyzeOffline("demo movement (synthetic)") { onStart ->
+            // Gate trim forced to 0: the demo must always produce a clean
+            // result regardless of the user's live-capture settings.
+            replayAnalyzer.analyzeSamples(
+                sampleRate = DemoSignal.SAMPLE_RATE,
+                samples = DemoSignal.generate(),
+                config = ReplayAnalyzer.Config(
+                    bphOverride = _uiState.value.bphOverride ?: 0,
+                    gateTrimDb = 0f,
+                ),
+                onStart = onStart,
+                onEvent = ::onEngineEvent,
+            )
+        }
+    }
+
+    private fun analyzeOffline(
+        sourceName: String,
+        block: suspend (onStart: (Int) -> Unit) -> Unit,
+    ) {
         if (_uiState.value.capturing) stopCapture()
         viewModelScope.launch {
             clearAnalysis()
-            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "recording"
-            _uiState.update { it.copy(replayFileName = name, replayError = null) }
+            _uiState.update { it.copy(replayFileName = sourceName, replayError = null) }
             try {
-                replayAnalyzer.analyze(
-                    uri = uri,
-                    bphOverride = _uiState.value.bphOverride ?: 0,
-                    gateTrimDb = _uiState.value.gateTrimDb,
-                    onStart = { sampleRate ->
-                        _uiState.update {
-                            it.copy(
-                                streamInfo = StreamInfo(
-                                    sampleRate = sampleRate,
-                                    unprocessed = false,
-                                    exclusiveMode = false,
-                                ),
-                            )
-                        }
-                    },
-                    onEvent = ::onEngineEvent,
-                )
+                block { sampleRate ->
+                    _uiState.update {
+                        it.copy(
+                            streamInfo = StreamInfo(
+                                sampleRate = sampleRate,
+                                unprocessed = false,
+                                exclusiveMode = false,
+                            ),
+                        )
+                    }
+                }
             } catch (e: WavReader.UnsupportedWavException) {
                 _uiState.update { it.copy(replayError = e.message) }
             } catch (e: IOException) {
@@ -236,6 +273,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         traceBph = 0
         traceComputer = null
         traceBuffer.clear()
+        sessionTicks.clear()
         levelsSinceTick = 0
         _uiState.update {
             it.copy(
@@ -392,11 +430,45 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
     private fun onTick(tick: EngineEvent.Tick) {
         levelsSinceTick = 0
         val computer = traceComputer ?: return
-        traceBuffer.addLast(TracePoint(computer.addTick(tick.deltaFrames), tick.accepted))
+        val deviationMs = computer.addTick(tick.deltaFrames)
+        traceBuffer.addLast(TracePoint(deviationMs, tick.accepted))
         while (traceBuffer.size > TimegrapherUiState.TRACE_CAPACITY) {
             traceBuffer.removeFirst()
         }
+        sessionTicks.addLast(SessionTick(computer.timestampMs, deviationMs, tick.accepted))
+        while (sessionTicks.size > SESSION_TICK_CAPACITY) {
+            sessionTicks.removeFirst()
+        }
         _uiState.update { it.copy(tracePoints = traceBuffer.toList()) }
+    }
+
+    /** Writes the session CSV and hands a share Uri to the UI. */
+    fun exportSession() {
+        val ticks = sessionTicks.toList()
+        val state = _uiState.value
+        if (ticks.isEmpty() || state.activeBph == 0) return
+        val summary = SessionExporter.Summary(
+            source = state.replayFileName?.let { "replay:$it" } ?: "live",
+            bph = state.activeBph,
+            rawSecPerDay = state.secPerDay,
+            clockCalSecPerDay = state.clockCalSecPerDay,
+            beatErrorMs = state.beatErrorMs,
+            sampleRate = state.streamInfo?.sampleRate,
+        )
+        viewModelScope.launch {
+            val uri = withContext(Dispatchers.IO) {
+                SessionExporter.writeForSharing(
+                    getApplication(),
+                    SessionExporter.buildCsv(summary, ticks),
+                )
+            }
+            _uiState.update { it.copy(exportUri = uri) }
+        }
+    }
+
+    /** The screen has launched the share sheet for the current export. */
+    fun onExportHandled() {
+        _uiState.update { it.copy(exportUri = null) }
     }
 
     private fun resetTrace(bph: Int) {
@@ -426,5 +498,8 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
 
         // Beyond ±10 s/day the crystal isn't the problem.
         const val CLOCK_CAL_LIMIT = 10f
+
+        // ~40 minutes at 8 ticks/s; oldest ticks roll off beyond this.
+        const val SESSION_TICK_CAPACITY = 20_000
     }
 }

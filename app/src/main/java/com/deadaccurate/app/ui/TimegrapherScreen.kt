@@ -1,6 +1,7 @@
 package com.deadaccurate.app.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,8 +65,24 @@ fun TimegrapherScreen(viewModel: TimegrapherViewModel = viewModel()) {
         onSetInputPreference = viewModel::setInputPreference,
         onDismissOnboarding = viewModel::dismissOnboarding,
         onReplayFile = viewModel::replayFile,
+        onRunDemo = viewModel::runDemo,
+        onExportSession = viewModel::exportSession,
+        onExportHandled = viewModel::onExportHandled,
         onAdjustClockCal = viewModel::adjustClockCal,
     )
+
+    // An export becoming ready launches the system share sheet once.
+    state.exportUri?.let { uri ->
+        LaunchedEffect(uri) {
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/csv"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(send, "Export session"))
+            viewModel.onExportHandled()
+        }
+    }
 
     Scaffold { innerPadding ->
         if (state.hasPermission) {
@@ -153,7 +171,10 @@ private fun CaptureContent(
         Button(onClick = actions.onToggleCapture, modifier = Modifier.fillMaxWidth()) {
             Text(if (state.capturing) "Stop" else "Start listening")
         }
-        ReplayButton(onReplayFile = actions.onReplayFile)
+        SecondaryActions(
+            hasSession = state.tracePoints.isNotEmpty(),
+            actions = actions,
+        )
         StreamInfoFooter(state)
     }
 }
@@ -190,15 +211,23 @@ private fun Notices(state: TimegrapherUiState, onDismissInputLost: () -> Unit) {
 }
 
 @Composable
-private fun ReplayButton(onReplayFile: (android.net.Uri) -> Unit) {
+private fun SecondaryActions(hasSession: Boolean, actions: CaptureActions) {
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
-    ) { uri -> uri?.let(onReplayFile) }
-    TextButton(
-        onClick = { picker.launch(arrayOf("audio/*", "application/octet-stream")) },
+    ) { uri -> uri?.let(actions.onReplayFile) }
+    Row(
         modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        Text("Analyze a recording (WAV)…")
+        TextButton(
+            onClick = { picker.launch(arrayOf("audio/*", "application/octet-stream")) },
+        ) {
+            Text("Analyze WAV…")
+        }
+        TextButton(onClick = actions.onRunDemo) { Text("Try a demo") }
+        TextButton(onClick = actions.onExportSession, enabled = hasSession) {
+            Text("Export CSV")
+        }
     }
 }
 
