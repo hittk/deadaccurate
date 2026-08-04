@@ -78,6 +78,12 @@ public:
     // Clears and refills `out` from `count` input samples.
     void Process(const float* samples, size_t count, Output& out);
 
+    // Diagnostic passthrough for offline tools: current fold score of a
+    // candidate rate in one correlation band.
+    double FoldingScoreForDebug(int bph, int channel) const {
+        return folding_.ScoreForDebug(bph, channel);
+    }
+
 private:
     void ResolveActiveRate();
     void EmitRateFrame(Output& out);

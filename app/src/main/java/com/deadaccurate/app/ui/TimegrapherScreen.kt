@@ -246,7 +246,7 @@ private fun SecondaryActions(
     ) {
         Text(
             recordingSecondsLeft?.let { "Recording… ${it}s (keep the watch on the mic)" }
-                ?: "Record 30 s for tuning",
+                ?: "Record 60 s for tuning",
         )
     }
 }

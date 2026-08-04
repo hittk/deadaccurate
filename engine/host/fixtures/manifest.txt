@@ -1,0 +1,4 @@
+# Real-recording regression fixtures: <file> <expected bph> [max beat error ms]
+# Every line is enforced by RealRecordingTest — a DSP change that breaks a
+# recorded watch breaks the build. Catalogue: docs/05-movement-catalogue.md
+phone_mic_28800.wav 28800 0.6

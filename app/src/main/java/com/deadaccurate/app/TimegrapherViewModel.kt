@@ -94,7 +94,7 @@ data class TimegrapherUiState(
     companion object {
         const val SILENCE_DB = -120f
         const val DEFAULT_HALF_RANGE_MS = 62.5f
-        val STANDARD_RATES = listOf(18000, 19800, 21600, 25200, 28800, 36000)
+        val STANDARD_RATES = listOf(14400, 16200, 18000, 19800, 21600, 25200, 28800, 36000)
         const val TRACE_CAPACITY = 480
     }
 }
@@ -513,7 +513,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
-     * Records 30 s of exactly what the analysis hears and offers the WAV
+     * Records 60 s of exactly what the analysis hears and offers the WAV
      * for sharing — the raw material for tuning against real signals.
      */
     fun recordDiagnostic() {
@@ -575,6 +575,8 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         // ~40 minutes at 8 ticks/s; oldest ticks roll off beyond this.
         const val SESSION_TICK_CAPACITY = 20_000
 
-        const val RECORD_SECONDS = 30
+        // Long enough for the correlation path to lock, settle, and produce
+        // a valid rate offline — 30 s clips end before the rate window fills.
+        const val RECORD_SECONDS = 60
     }
 }
