@@ -1,8 +1,10 @@
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <vector>
 
 #include "TestFramework.h"
+#include "deadaccurate/BeatRateDetector.h"
 #include "deadaccurate/DspChain.h"
 
 using deadaccurate::DspChain;
@@ -182,14 +184,14 @@ TEST(DspChain, AutoDetectsRateAndMeasuresFastWatchEndToEnd) {
 }
 
 TEST(DspChain, AutoLocksAndMeasuresAllStandardRates) {
-    // M3 acceptance: every standard rate auto-locks from raw audio and the
-    // readout lands within ±0.3 s/day of ground truth.
-    constexpr int kRates[] = {18000, 19800, 21600, 25200, 28800, 36000};
+    // M3 acceptance: every supported rate (including the vintage 14400 and
+    // 16200) auto-locks from raw audio and the readout lands within
+    // ±0.3 s/day of ground truth.
     // 20 ppm fast -> +1.728 s/day, same for every rate.
     constexpr double kSpeedFactor = 1.0 - 20e-6;
     constexpr double kExpectedSecPerDay = 20e-6 * 86400.0;
 
-    for (const int bph : kRates) {
+    for (const int bph : deadaccurate::BeatRateDetector::kStandardRatesBph) {
         const double idealPeriod = 3600.0 / bph * kSampleRate;
         const std::vector<float> signal =
             SyntheticWatchSignal(16, idealPeriod * kSpeedFactor);
@@ -327,6 +329,101 @@ TEST(DspChain, CorrelationDisambiguatesDoubledPeriods) {
         chain.SetAnalysisMode(DspChain::AnalysisMode::kCorrelation);
         EXPECT_EQ(RunChain(chain, signal).activeBph, 18000);
     }
+}
+
+TEST(DspChain, CorrelationLockMatrixAllRatesAllBands) {
+    // The "any watch" guarantee: every supported rate, with its tick energy
+    // landing in each of the three correlation bands, under rumble-heavy
+    // colored noise like a real room — all must lock in correlation mode.
+    constexpr double kCarriers[] = {1500.0, 5000.0, 11000.0};
+
+    for (const int bph : deadaccurate::BeatRateDetector::kStandardRatesBph) {
+        for (const double carrierHz : kCarriers) {
+            const double period = 3600.0 / bph * kSampleRate;
+            Lcg lcg{static_cast<uint32_t>(bph + static_cast<int>(carrierHz))};
+            std::vector<float> signal(static_cast<size_t>(20) * kSampleRate);
+            // Rumble: low-passed noise 20 dB above the broadband floor.
+            float rumble = 0.0f;
+            for (auto& sample : signal) {
+                rumble += 0.026f * (0.10f * lcg.Next() - rumble);
+                sample = rumble + 0.01f * lcg.Next();
+            }
+            for (size_t beat = 0;; ++beat) {
+                const auto start = static_cast<size_t>(beat * period);
+                if (start + 96 >= signal.size()) break;
+                for (int j = 0; j < 96; ++j) {
+                    signal[start + j] += static_cast<float>(
+                        0.05 * std::exp(-j / 24.0) *
+                        std::sin(2.0 * M_PI * carrierHz * j / kSampleRate));
+                }
+            }
+
+            DspChain chain(kSampleRate);
+            chain.SetAnalysisMode(DspChain::AnalysisMode::kCorrelation);
+            const auto last = RunChain(chain, signal);
+            if (last.activeBph != bph) {
+                std::printf("  matrix miss: bph=%d carrier=%.0f -> active=%d det=%d\n",
+                            bph, carrierHz, last.activeBph, last.detectedBph);
+            }
+            EXPECT_EQ(last.activeBph, bph);
+        }
+    }
+}
+
+TEST(DspChain, CorrelationDisambiguates14400From28800) {
+    // The second 2x pair once vintage rates joined the candidate set.
+    for (const int bph : {14400, 28800}) {
+        const std::vector<float> signal =
+            LowSnrWatchSignal(30, 3600.0 / bph * kSampleRate);
+        DspChain chain(kSampleRate);
+        chain.SetAnalysisMode(DspChain::AnalysisMode::kCorrelation);
+        EXPECT_EQ(RunChain(chain, signal).activeBph, bph);
+    }
+}
+
+TEST(DspChain, CorrelationWorksAt44100) {
+    // 44.1 kHz makes a "1 ms" bin 44 samples = 0.99773 ms; folding with a
+    // nominal 1 ms would smear the profile to nothing. Locks AND measures.
+    constexpr int kFs = 44100;
+    const double idealPeriod = 3600.0 / 28800 * kFs;
+    // 1 part in 6000 fast -> +14.4 s/day: large enough for the fold's
+    // phase-drift resolution over a 60 s window (tiny drifts are edge
+    // mode's territory), and a nominal-1ms-bin bug would still smear this
+    // to a mislock.
+    const double period = idealPeriod * (1.0 - 1.0 / 6000.0);
+
+    Lcg lcg{77};
+    std::vector<float> signal(static_cast<size_t>(60) * kFs);
+    for (auto& sample : signal) {
+        sample = 0.02f * lcg.Next();
+    }
+    for (size_t beat = 0;; ++beat) {
+        const auto start = static_cast<size_t>(beat * period);
+        if (start + 96 >= signal.size()) break;
+        for (int j = 0; j < 96; ++j) {
+            signal[start + j] += static_cast<float>(
+                0.04 * std::exp(-j / 22.0) * std::sin(2.0 * M_PI * 5000.0 * j / kFs));
+        }
+    }
+
+    DspChain chain(kFs);
+    chain.SetAnalysisMode(DspChain::AnalysisMode::kCorrelation);
+    DspChain::Output output;
+    DspChain::RateFrame last{};
+    constexpr size_t kChunk = 1024;
+    for (size_t offset = 0; offset < signal.size(); offset += kChunk) {
+        const size_t n = std::min(kChunk, signal.size() - offset);
+        chain.Process(signal.data() + offset, n, output);
+        for (const auto& rate : output.rates) {
+            last = rate;
+        }
+    }
+    EXPECT_EQ(last.activeBph, 28800);
+    EXPECT_TRUE(last.rateValid);
+    if (std::fabs(last.secPerDay - 14.4) > 1.5) {
+        std::printf("  44100 rate: %.3f s/d (expected ~14.4)\n", last.secPerDay);
+    }
+    EXPECT_NEAR(last.secPerDay, 14.4, 1.5);
 }
 
 TEST(DspChain, StaysSilentOnPureNoise) {

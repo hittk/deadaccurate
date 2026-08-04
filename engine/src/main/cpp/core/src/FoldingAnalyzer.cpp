@@ -6,8 +6,10 @@
 namespace deadaccurate {
 namespace {
 
-constexpr std::array<int, 6> kStandardRatesBph = {18000, 19800, 21600,
-                                                  25200, 28800, 36000};
+// Includes vintage/pocket-watch rates; the 2x pairs (14400/28800 and
+// 18000/36000) are resolved by the half-period-alias veto.
+constexpr std::array<int, 8> kStandardRatesBph = {14400, 16200, 18000, 19800,
+                                                  21600, 25200, 28800, 36000};
 
 double PeriodMsForBph(int bph) {
     return 3600.0 * 1000.0 / bph;
@@ -71,7 +73,8 @@ ProfileStats Analyze(const std::array<double, N>& profile, int minSlots) {
 
 FoldingAnalyzer::FoldingAnalyzer(int sampleRate)
     : binSize_(static_cast<int>(sampleRate * kBinMs / 1000.0)),
-      meanAlpha_(static_cast<float>(1.0 / (kMeanSeconds * 1000.0 / kBinMs))) {
+      binDurationMs_(binSize_ * 1000.0 / sampleRate),
+      meanAlpha_(static_cast<float>(binDurationMs_ / (kMeanSeconds * 1000.0))) {
     for (auto& channel : history_) {
         channel.assign(kWindowBins, 0.0f);
     }
@@ -108,7 +111,7 @@ bool FoldingAnalyzer::Push(const float* channelEnvelopes, Snapshot* out) {
 }
 
 void FoldingAnalyzer::AddBin() {
-    const auto binTimeMs = static_cast<double>(binIndex_) * kBinMs;
+    const auto binTimeMs = static_cast<double>(binIndex_) * binDurationMs_;
     for (int c = 0; c < kChannels; ++c) {
         const auto cs = static_cast<size_t>(c);
         const float value = binSum_[cs] / static_cast<float>(binSize_);
@@ -142,7 +145,7 @@ bool FoldingAnalyzer::FoldProfile(int channel, double periodMs,
     std::array<int, kScoreSlots> count{};
     const int64_t firstBin = binIndex_ - available;
     for (int64_t n = firstBin; n < binIndex_; ++n) {
-        const double t = static_cast<double>(n) * kBinMs;
+        const double t = static_cast<double>(n) * binDurationMs_;
         const double phase = std::fmod(t, periodMs) / periodMs;
         const auto slot =
             std::min<int>(static_cast<int>(phase * kScoreSlots), kScoreSlots - 1);
@@ -314,7 +317,7 @@ void FoldingAnalyzer::TakeSnapshot() {
         return;
     }
     snapshot_.beatCount =
-        static_cast<int>(static_cast<double>(profileBins_) * kBinMs / activePeriodMs_);
+        static_cast<int>(static_cast<double>(profileBins_) * binDurationMs_ / activePeriodMs_);
     EstimatePhaseAndRate();
     EstimateBeatError();
 }
@@ -345,7 +348,7 @@ void FoldingAnalyzer::EstimatePhaseAndRate() {
         unwrappedPhaseMs_ += WrapHalf(phaseMs - lastPhaseMs_, activePeriodMs_);
         lastPhaseMs_ = phaseMs;
     }
-    const double tSec = static_cast<double>(binIndex_) * kBinMs / 1000.0;
+    const double tSec = static_cast<double>(binIndex_) * binDurationMs_ / 1000.0;
     phasePoints_.emplace_back(tSec, unwrappedPhaseMs_);
     while (phasePoints_.size() > kMaxPhasePoints) {
         phasePoints_.pop_front();

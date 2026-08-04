@@ -30,6 +30,30 @@ int main(int argc, char** argv) {
             signal[i] = v / 32768.0f;
         }
         std::printf("loaded %zu samples (%.1f s)\n", n, n / 48000.0);
+    } else if (argc > 3) {
+        // "-" bph carrierHz : the lock-matrix generator (rumble noise).
+        const int bph = atoi(argv[2]);
+        const double carrier = atof(argv[3]);
+        const double period = 3600.0 / bph * kFs;
+        uint32_t lcg = static_cast<uint32_t>(bph + static_cast<int>(carrier));
+        signal.assign(20 * kFs, 0.0f);
+        float rumble = 0.0f;
+        for (auto& s : signal) {
+            lcg = lcg * 1664525u + 1013904223u;
+            const float w1 = ((static_cast<float>(lcg >> 8) / (1 << 24)) * 2.0f - 1.0f);
+            lcg = lcg * 1664525u + 1013904223u;
+            const float w2 = ((static_cast<float>(lcg >> 8) / (1 << 24)) * 2.0f - 1.0f);
+            rumble += 0.026f * (0.10f * w1 - rumble);
+            s = rumble + 0.01f * w2;
+        }
+        for (size_t beat = 0;; ++beat) {
+            const auto start = static_cast<size_t>(beat * period);
+            if (start + 96 >= signal.size()) break;
+            for (int j = 0; j < 96; ++j) {
+                signal[start + j] += static_cast<float>(
+                    0.05 * std::exp(-j / 24.0) * std::sin(2.0 * M_PI * carrier * j / kFs));
+            }
+        }
     } else {
         uint32_t lcg = 99;
         signal.assign(60 * kFs, 0.0f);
@@ -64,14 +88,13 @@ int main(int argc, char** argv) {
         float e[3];
         for (int c = 0; c < 3; ++c) e[c] = std::fabs(bands[c].Process(s));
         if (folding.Push(e, &snap) && (i / (kFs / 2)) % 10 == 0) {
-            std::printf("t=%5.1f active=%d det=%d | 28800: %4.1f %4.1f %4.1f | 25200: %4.1f %4.1f %4.1f | 36000: %4.1f %4.1f %4.1f\n",
+            std::printf("t=%5.1f active=%d det=%d | 21600: %4.1f %4.1f %4.1f | 28800: %4.1f %4.1f %4.1f | 43200x10800: %4.1f %4.1f\n",
                         static_cast<double>(i) / kFs, snap.activeBph, snap.detectedBph,
+                        folding.ScoreForDebug(21600, 0), folding.ScoreForDebug(21600, 1),
+                        folding.ScoreForDebug(21600, 2),
                         folding.ScoreForDebug(28800, 0), folding.ScoreForDebug(28800, 1),
                         folding.ScoreForDebug(28800, 2),
-                        folding.ScoreForDebug(25200, 0), folding.ScoreForDebug(25200, 1),
-                        folding.ScoreForDebug(25200, 2),
-                        folding.ScoreForDebug(36000, 0), folding.ScoreForDebug(36000, 1),
-                        folding.ScoreForDebug(36000, 2));
+                        folding.ScoreForDebug(14400, 0), folding.ScoreForDebug(16200, 0));
         }
         ++i;
     }

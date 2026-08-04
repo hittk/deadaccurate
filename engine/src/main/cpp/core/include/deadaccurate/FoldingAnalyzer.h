@@ -89,7 +89,11 @@ private:
     static constexpr int kProfileSlots = 64;
     static constexpr int kMinScoreBins = 2000;
     static constexpr double kLockScore = 6.0;
-    static constexpr double kLockMargin = 1.3;   // best/runner-up ratio
+    // Best/runner-up ratio. Deliberately mild: harmonically related
+    // candidates (a 21600 watch folds into three even peaks at the 28800
+    // period) legitimately score ~80% of the true rate, and the lock-matrix
+    // test proves no cross-locks at this setting.
+    static constexpr double kLockMargin = 1.15;
     static constexpr int kLockStreak = 2;
     static constexpr double kUnlockScore = 3.5;
     // A profile with a second peak near half a period apart means the true
@@ -115,6 +119,10 @@ private:
     static constexpr int kBeatErrorSearchSlots = 12;
 
     const int binSize_;
+    // Exact duration of one bin. At 44.1 kHz a "1 ms" bin is 44 samples =
+    // 0.99773 ms; folding with a nominal 1 ms would drift 0.23% per period
+    // and smear the profile to nothing over a 30 s window.
+    const double binDurationMs_;
     const float meanAlpha_;
 
     // per-channel bin accumulation and centered-energy history (rings)

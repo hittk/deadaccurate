@@ -13,8 +13,8 @@ namespace deadaccurate {
 // hysteresis so a noisy signal doesn't flap between neighboring rates.
 class BeatRateDetector {
 public:
-    static constexpr std::array<int, 6> kStandardRatesBph = {18000, 19800, 21600,
-                                                             25200, 28800, 36000};
+    static constexpr std::array<int, 8> kStandardRatesBph = {
+        14400, 16200, 18000, 19800, 21600, 25200, 28800, 36000};
 
     explicit BeatRateDetector(int sampleRate);
 
