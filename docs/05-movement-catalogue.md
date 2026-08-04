@@ -11,7 +11,7 @@ after which the build fails if any DSP change ever breaks that watch.
 
 | Movement | Nominal bph | Notes |
 | --- | --- | --- |
-| Seiko 6R54 | 21,600 | GMT, 72 h reserve |
+| Seiko 6R64 | 28,800 | GMT — the first catalogued fixture |
 | Seiko NH35 | 21,600 | |
 | Seiko 4R36 | 21,600 | |
 | ETA 2824-2 | 28,800 | |
@@ -24,7 +24,7 @@ after which the build fails if any DSP change ever breaks that watch.
 
 | Fixture | Reported watch | Measured | Status |
 | --- | --- | --- | --- |
-| `phone_mic_28800.wav` | reported as Seiko 6R54 | locks 28,800, beat error ≈ 0.07 ms (reference app: 0.3 ms) | ⚠ discrepancy: a 6R54 is nominally 21,600, but this signal is unambiguously 28,800 (its own-period fold dominates, and the reference app agreed). Most likely a different watch was on the mic — the ETA 2824-2 is the 28,800 candidate. To be re-confirmed in the labeled batch. |
+| `seiko_6r64_28800.wav` | Seiko 6R64 | locks 28,800 in ~11 s (band 2, 8–16 kHz), beat error ≈ 0.07 ms (reference app: 0.3 ms) | ✅ confirmed — initially reported as a 6R54 (21,600); the acoustic evidence said 28,800 and the owner confirmed the watch is the 6R64. A nice validation that the fold's rate identification can be trusted over a label. |
 
 ## Intake procedure
 

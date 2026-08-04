@@ -181,7 +181,7 @@ default.
 ### 9b. Correlation-mode tuning against a real recording
 
 The first field recording (checked in as
-`engine/host/fixtures/phone_mic_28800.wav`, guarded by a regression test)
+`engine/host/fixtures/seiko_6r64_28800.wav`, guarded by a regression test)
 reshaped the design:
 
 - **Multiband:** the movement's tick energy sat at **8–16 kHz** while room
