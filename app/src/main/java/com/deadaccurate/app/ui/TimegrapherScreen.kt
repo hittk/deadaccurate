@@ -101,7 +101,7 @@ fun TimegrapherScreen(viewModel: TimegrapherViewModel = viewModel()) {
 }
 
 @Composable
-private fun PermissionRationale(onRequest: () -> Unit, modifier: Modifier = Modifier) {
+internal fun PermissionRationale(onRequest: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center,
@@ -121,7 +121,7 @@ private fun PermissionRationale(onRequest: () -> Unit, modifier: Modifier = Modi
 }
 
 @Composable
-private fun CaptureContent(
+internal fun CaptureContent(
     state: TimegrapherUiState,
     actions: CaptureActions,
     modifier: Modifier = Modifier,
