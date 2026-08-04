@@ -9,7 +9,7 @@ complexity:
     thresholdInClasses: 32
   LongParameterList:
     # CaptureActions groups every screen intent into one data class.
-    constructorThreshold: 14
+    constructorThreshold: 16
 
 style:
   MagicNumber:

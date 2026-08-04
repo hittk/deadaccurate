@@ -69,18 +69,21 @@ fun TimegrapherScreen(viewModel: TimegrapherViewModel = viewModel()) {
         onRunDemo = viewModel::runDemo,
         onExportSession = viewModel::exportSession,
         onExportHandled = viewModel::onExportHandled,
+        onRecordDiagnostic = viewModel::recordDiagnostic,
         onAdjustClockCal = viewModel::adjustClockCal,
     )
 
-    // An export becoming ready launches the system share sheet once.
-    state.exportUri?.let { uri ->
+    // An export or recording becoming ready launches the share sheet once.
+    val shareUri = state.exportUri ?: state.recordUri
+    val shareMime = if (state.exportUri != null) "text/csv" else "audio/wav"
+    shareUri?.let { uri ->
         LaunchedEffect(uri) {
             val send = Intent(Intent.ACTION_SEND).apply {
-                type = "text/csv"
+                type = shareMime
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(send, "Export session"))
+            context.startActivity(Intent.createChooser(send, "Share"))
             viewModel.onExportHandled()
         }
     }
@@ -175,6 +178,7 @@ internal fun CaptureContent(
         }
         SecondaryActions(
             hasSession = state.tracePoints.isNotEmpty(),
+            recordingSecondsLeft = state.recordingSecondsLeft,
             actions = actions,
         )
         StreamInfoFooter(state)
@@ -213,7 +217,11 @@ private fun Notices(state: TimegrapherUiState, onDismissInputLost: () -> Unit) {
 }
 
 @Composable
-private fun SecondaryActions(hasSession: Boolean, actions: CaptureActions) {
+private fun SecondaryActions(
+    hasSession: Boolean,
+    recordingSecondsLeft: Int?,
+    actions: CaptureActions,
+) {
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> uri?.let(actions.onReplayFile) }
@@ -230,6 +238,16 @@ private fun SecondaryActions(hasSession: Boolean, actions: CaptureActions) {
         TextButton(onClick = actions.onExportSession, enabled = hasSession) {
             Text("Export CSV")
         }
+    }
+    TextButton(
+        onClick = actions.onRecordDiagnostic,
+        enabled = recordingSecondsLeft == null,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            recordingSecondsLeft?.let { "Recording… ${it}s (keep the watch on the mic)" }
+                ?: "Record 30 s for tuning",
+        )
     }
 }
 

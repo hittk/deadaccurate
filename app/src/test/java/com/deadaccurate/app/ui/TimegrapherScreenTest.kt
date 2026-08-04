@@ -43,6 +43,7 @@ class TimegrapherScreenTest {
         onRunDemo = {},
         onExportSession = {},
         onExportHandled = {},
+        onRecordDiagnostic = {},
         onAdjustClockCal = {},
     )
 

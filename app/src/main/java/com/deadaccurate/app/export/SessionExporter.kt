@@ -53,10 +53,14 @@ object SessionExporter {
     }
 
     /** Writes [csv] to the app cache and returns a shareable content Uri. */
-    fun writeForSharing(context: Context, csv: String): Uri {
+    fun writeForSharing(context: Context, csv: String): Uri =
+        writeBytesForSharing(context, EXPORT_FILE, csv.toByteArray(Charsets.UTF_8))
+
+    /** Shares any generated file (CSV export, diagnostic WAV) via cache. */
+    fun writeBytesForSharing(context: Context, fileName: String, bytes: ByteArray): Uri {
         val dir = File(context.cacheDir, EXPORT_DIR).apply { mkdirs() }
-        val file = File(dir, EXPORT_FILE)
-        file.writeText(csv)
+        val file = File(dir, fileName)
+        file.writeBytes(bytes)
         return FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",

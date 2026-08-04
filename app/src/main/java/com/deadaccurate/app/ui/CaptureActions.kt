@@ -19,6 +19,7 @@ data class CaptureActions(
     val onRunDemo: () -> Unit,
     val onExportSession: () -> Unit,
     val onExportHandled: () -> Unit,
+    val onRecordDiagnostic: () -> Unit,
     /** Delta in s/day; 0 resets the calibration. */
     val onAdjustClockCal: (Float) -> Unit,
 )

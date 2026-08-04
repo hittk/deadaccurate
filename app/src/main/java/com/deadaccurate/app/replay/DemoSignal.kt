@@ -17,7 +17,9 @@ object DemoSignal {
     const val SEC_PER_DAY_FAST = 7.0
     const val BEAT_ERROR_MS = 1.5
 
-    private const val SECONDS = 16
+    // Long enough for correlation mode to lock, settle, and show a valid
+    // rate — it needs ~30 s of settled fold before the readout appears.
+    private const val SECONDS = 45
     private const val NOISE_AMPLITUDE = 0.001f
     private const val BURST_AMPLITUDE = 0.3
     private const val BURST_FRAMES = 96 // 2 ms

@@ -7,11 +7,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import android.net.Uri
 import com.deadaccurate.app.audio.AudioInputMonitor
+import com.deadaccurate.app.audio.RawRecorder
 import com.deadaccurate.app.export.SessionExporter
 import com.deadaccurate.app.export.SessionTick
 import com.deadaccurate.app.replay.DemoSignal
 import com.deadaccurate.app.replay.ReplayAnalyzer
 import com.deadaccurate.app.replay.WavReader
+import com.deadaccurate.app.replay.WavWriter
 import com.deadaccurate.app.settings.AnalysisMode
 import com.deadaccurate.app.settings.InputPreference
 import java.io.IOException
@@ -77,6 +79,10 @@ data class TimegrapherUiState(
     val replayError: String? = null,
     /** Set when an export is ready; the screen launches the share sheet. */
     val exportUri: Uri? = null,
+    /** Diagnostic recording in progress: seconds remaining. */
+    val recordingSecondsLeft: Int? = null,
+    /** Set when a diagnostic WAV is ready to share. */
+    val recordUri: Uri? = null,
 ) {
     /** What the readout shows: measurement plus the clock correction. */
     val correctedSecPerDay: Float get() = secPerDay + clockCalSecPerDay
@@ -503,7 +509,39 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
 
     /** The screen has launched the share sheet for the current export. */
     fun onExportHandled() {
-        _uiState.update { it.copy(exportUri = null) }
+        _uiState.update { it.copy(exportUri = null, recordUri = null) }
+    }
+
+    /**
+     * Records 30 s of exactly what the analysis hears and offers the WAV
+     * for sharing — the raw material for tuning against real signals.
+     */
+    fun recordDiagnostic() {
+        if (_uiState.value.recordingSecondsLeft != null) return
+        if (_uiState.value.capturing) stopCapture()
+        viewModelScope.launch {
+            _uiState.update { it.copy(recordingSecondsLeft = RECORD_SECONDS) }
+            try {
+                val recording = RawRecorder().record(
+                    seconds = RECORD_SECONDS,
+                    unprocessedSupported = unprocessedSupported,
+                ) { left ->
+                    _uiState.update { it.copy(recordingSecondsLeft = left) }
+                }
+                val uri = withContext(Dispatchers.IO) {
+                    SessionExporter.writeBytesForSharing(
+                        getApplication(),
+                        "deadaccurate-recording.wav",
+                        WavWriter.toWavBytes(recording.samples, recording.sampleRate),
+                    )
+                }
+                _uiState.update { it.copy(recordUri = uri) }
+            } catch (e: IllegalStateException) {
+                _uiState.update { it.copy(replayError = e.message) }
+            } finally {
+                _uiState.update { it.copy(recordingSecondsLeft = null) }
+            }
+        }
     }
 
     private fun resetTrace(bph: Int) {
@@ -536,5 +574,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
 
         // ~40 minutes at 8 ticks/s; oldest ticks roll off beyond this.
         const val SESSION_TICK_CAPACITY = 20_000
+
+        const val RECORD_SECONDS = 30
     }
 }

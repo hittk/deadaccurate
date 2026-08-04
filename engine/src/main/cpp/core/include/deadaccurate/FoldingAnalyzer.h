@@ -65,7 +65,10 @@ private:
     static constexpr int kWindowBins = 16000;   // 16 s scoring history
     static constexpr int kScoreBins = 8000;     // 8 s used per evaluation
     static constexpr int kSnapshotBins = 500;   // snapshot every 0.5 s
-    static constexpr double kMeanSeconds = 2.0; // running-mean time constant
+    // Fast mean-removal: real phone input pumps with AGC at sub-hertz
+    // rates, which would otherwise inflate the fold profile's sigma and
+    // suppress the score. 0.5 s is still 2.5x the longest beat period.
+    static constexpr double kMeanSeconds = 0.5;
 
     // --- fold scoring / lock ---
     static constexpr int kProfileSlots = 64;

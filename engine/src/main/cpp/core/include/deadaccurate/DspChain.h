@@ -84,6 +84,11 @@ private:
 
     static constexpr double kBandLowHz = 2000.0;
     static constexpr double kBandHighHz = 12000.0;
+    // The correlation path listens wider: phone input processing often
+    // leaves tick energy below 2 kHz, and folding tolerates the extra
+    // noise that the edge path's piezo-tuned band exists to reject.
+    static constexpr double kWideBandLowHz = 800.0;
+    static constexpr double kWideBandHighHz = 12000.0;
     static constexpr double kAttackMs = 0.5;
     static constexpr double kReleaseMs = 5.0;
     static constexpr int kLevelFramesPerSecond = 30;
@@ -93,6 +98,8 @@ private:
     const int sampleRate_;
     BandPassFilter bandPass_;
     EnvelopeFollower envelope_;
+    BandPassFilter bandPassWide_;
+    EnvelopeFollower envelopeWide_;
     NoiseGate gate_;
     TickDetector tickDetector_;
     LevelAnalyzer levelAnalyzer_;

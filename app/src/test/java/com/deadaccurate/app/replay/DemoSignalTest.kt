@@ -9,9 +9,9 @@ import org.junit.Test
 class DemoSignalTest {
 
     @Test
-    fun generatesSixteenSecondsAtFullScaleHeadroom() {
+    fun generatesFortyFiveSecondsAtFullScaleHeadroom() {
         val samples = DemoSignal.generate()
-        assertEquals(16 * DemoSignal.SAMPLE_RATE, samples.size)
+        assertEquals(45 * DemoSignal.SAMPLE_RATE, samples.size)
         assertTrue(samples.all { abs(it) <= 1f })
     }
 

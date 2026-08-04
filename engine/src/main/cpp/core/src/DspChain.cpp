@@ -6,6 +6,8 @@ DspChain::DspChain(int sampleRate)
     : sampleRate_(sampleRate),
       bandPass_(sampleRate, kBandLowHz, kBandHighHz),
       envelope_(sampleRate, kAttackMs, kReleaseMs),
+      bandPassWide_(sampleRate, kWideBandLowHz, kWideBandHighHz),
+      envelopeWide_(sampleRate, kAttackMs, kReleaseMs),
       gate_(sampleRate),
       tickDetector_(sampleRate),
       levelAnalyzer_(static_cast<size_t>(sampleRate / kLevelFramesPerSecond)),
@@ -80,9 +82,10 @@ void DspChain::Process(const float* samples, size_t count, Output& out) {
             }
         }
 
-        // Correlation path: likewise always fed.
+        // Correlation path: likewise always fed, from its own wider band.
+        const float wideEnv = envelopeWide_.Process(bandPassWide_.Process(samples[i]));
         FoldingAnalyzer::Snapshot snapshot;
-        if (folding_.Push(&env, 1, &snapshot) &&
+        if (folding_.Push(&wideEnv, 1, &snapshot) &&
             mode_ == AnalysisMode::kCorrelation) {
             out.rates.push_back({
                 snapshot.activeBph,
