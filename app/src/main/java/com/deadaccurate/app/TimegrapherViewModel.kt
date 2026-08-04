@@ -45,6 +45,8 @@ data class TimegrapherUiState(
     val bphOverride: Int? = null,
     /** Rate in effect (override or locked detection); 0 while searching. */
     val activeBph: Int = 0,
+    /** Detector's own lock; keeps reporting under an override. */
+    val detectedBph: Int = 0,
     val rateLocked: Boolean = false,
     val rateValid: Boolean = false,
     /** Raw measurement against the device audio clock. */
@@ -69,6 +71,10 @@ data class TimegrapherUiState(
 ) {
     /** What the readout shows: measurement plus the clock correction. */
     val correctedSecPerDay: Float get() = secPerDay + clockCalSecPerDay
+
+    /** The pinned rate contradicts what the signal actually looks like. */
+    val overrideDisagrees: Boolean
+        get() = bphOverride != null && detectedBph > 0 && detectedBph != bphOverride
 
     companion object {
         const val SILENCE_DB = -120f
@@ -235,6 +241,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
             it.copy(
                 tracePoints = emptyList(),
                 activeBph = 0,
+                detectedBph = 0,
                 rateLocked = false,
                 rateValid = false,
                 beatErrorMs = null,
@@ -372,6 +379,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         _uiState.update {
             it.copy(
                 activeBph = event.activeBph,
+                detectedBph = event.detectedBph,
                 rateLocked = event.locked,
                 rateValid = event.rateValid,
                 secPerDay = event.secPerDay,

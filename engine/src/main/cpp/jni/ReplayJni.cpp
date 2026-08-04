@@ -77,7 +77,7 @@ Java_com_deadaccurate_engine_ReplayEngine_nativeProcess(JNIEnv* env, jobject /*t
         events.push_back(deadaccurate::MakeTickEvent(deltaFrames, tick.peakDb, tick.accepted));
     }
     for (const auto& rate : session->output.rates) {
-        events.push_back(deadaccurate::MakeRateEvent(rate.activeBph, rate.locked,
+        events.push_back(deadaccurate::MakeRateEvent(rate.activeBph, rate.detectedBph,
                                                      rate.overridden, rate.rateValid,
                                                      rate.secPerDay, rate.tickCount,
                                                      rate.beatErrorMs));

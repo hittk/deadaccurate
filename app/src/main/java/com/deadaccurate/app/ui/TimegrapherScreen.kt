@@ -126,9 +126,17 @@ private fun CaptureContent(
         BeatTrace(points = state.tracePoints, halfRangeMs = state.traceHalfRangeMs)
         RateSelector(
             overrideBph = state.bphOverride,
-            detectedBph = state.activeBph,
+            detectedBph = state.detectedBph,
             onSelect = actions.onSetBphOverride,
         )
+        if (state.overrideDisagrees) {
+            Text(
+                "The signal looks like ${state.detectedBph} bph, not the " +
+                    "pinned ${state.bphOverride}. Tap Auto to trust the signal.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
 
         MeterSection(state)
         GateControls(

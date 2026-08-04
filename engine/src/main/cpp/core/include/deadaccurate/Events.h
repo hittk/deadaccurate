@@ -17,9 +17,11 @@ enum class EventType : int {
                   // v[4]=exclusive, v[5]=deviceId, v[6]=errorCode
     kTick = 3,    // v[1]=deltaFrames since previous tick (0 for the first),
                   // v[2]=peakDb, v[3]=accepted
-    kRate = 4,    // v[1]=activeBph, v[2]=locked, v[3]=overridden,
-                  // v[4]=rateValid, v[5]=secPerDay, v[6]=tickCount,
-                  // v[7]=beatErrorMs (negative = not measurable)
+    kRate = 4,    // v[1]=activeBph, v[2]=detectedBph (0 = not locked),
+                  // v[3]=overridden, v[4]=rateValid, v[5]=secPerDay,
+                  // v[6]=tickCount, v[7]=beatErrorMs (negative = not
+                  // measurable). detectedBph keeps reporting while an
+                  // override is active so the UI can flag disagreement.
 };
 
 enum class EngineState : int {
@@ -57,12 +59,12 @@ inline Event MakeTickEvent(float deltaFrames, float peakDb, bool accepted) {
     return e;
 }
 
-inline Event MakeRateEvent(int activeBph, bool locked, bool overridden, bool rateValid,
+inline Event MakeRateEvent(int activeBph, int detectedBph, bool overridden, bool rateValid,
                            float secPerDay, int tickCount, float beatErrorMs) {
     Event e{};
     e.v[0] = static_cast<float>(EventType::kRate);
     e.v[1] = static_cast<float>(activeBph);
-    e.v[2] = locked ? 1.0f : 0.0f;
+    e.v[2] = static_cast<float>(detectedBph);
     e.v[3] = overridden ? 1.0f : 0.0f;
     e.v[4] = rateValid ? 1.0f : 0.0f;
     e.v[5] = secPerDay;

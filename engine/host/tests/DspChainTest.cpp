@@ -120,7 +120,7 @@ TEST(DspChain, AutoDetectsRateAndMeasuresFastWatchEndToEnd) {
     }
 
     EXPECT_TRUE(sawSearching);  // it searched before locking
-    EXPECT_TRUE(last.locked);
+    EXPECT_TRUE(last.detectedBph > 0);
     EXPECT_TRUE(!last.overridden);
     EXPECT_EQ(last.activeBph, kBph);
     EXPECT_TRUE(last.rateValid);
@@ -155,7 +155,7 @@ TEST(DspChain, AutoLocksAndMeasuresAllStandardRates) {
             }
         }
 
-        EXPECT_TRUE(last.locked);
+        EXPECT_TRUE(last.detectedBph > 0);
         EXPECT_EQ(last.activeBph, bph);
         EXPECT_TRUE(last.rateValid);
         EXPECT_NEAR(last.secPerDay, kExpectedSecPerDay, 0.3);
@@ -178,7 +178,7 @@ TEST(DspChain, MeasuresBeatErrorEndToEnd) {
         }
     }
 
-    EXPECT_TRUE(last.locked);
+    EXPECT_TRUE(last.detectedBph > 0);
     EXPECT_EQ(last.activeBph, kBph);
     EXPECT_TRUE(last.rateValid);
     EXPECT_NEAR(last.beatErrorMs, 2.0, 0.3);
@@ -189,7 +189,7 @@ TEST(DspChain, OverridePinsTheRateImmediately) {
     DspChain chain(kSampleRate);
     chain.SetBphOverride(18000);
 
-    const std::vector<float> signal = SyntheticWatchSignal(4, kBeatPeriodFrames);
+    const std::vector<float> signal = SyntheticWatchSignal(6, kBeatPeriodFrames);
     DspChain::Output output;
     DspChain::RateFrame last{};
     constexpr size_t kChunk = 1024;
@@ -203,6 +203,9 @@ TEST(DspChain, OverridePinsTheRateImmediately) {
     // The signal is 28800 but the override pins 18000 (and reports it).
     EXPECT_EQ(last.activeBph, 18000);
     EXPECT_TRUE(last.overridden);
+    // The detector keeps scoring in the background so the UI can flag the
+    // disagreement (FR-4).
+    EXPECT_EQ(last.detectedBph, kBph);
 }
 
 TEST(DspChain, StaysSilentOnPureNoise) {

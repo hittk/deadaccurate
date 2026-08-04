@@ -33,17 +33,21 @@ sealed interface EngineEvent {
     /**
      * Beat-rate identification and rate-deviation snapshot (~2 Hz plus on
      * every change). [activeBph] 0 means still searching with no override;
+     * [detectedBph] is the detector's lock (0 = searching) and keeps
+     * reporting under an override so disagreement can be flagged;
      * [beatErrorMs] is null until both beat series have enough ticks.
      */
     data class Rate(
         val activeBph: Int,
-        val locked: Boolean,
+        val detectedBph: Int,
         val overridden: Boolean,
         val rateValid: Boolean,
         val secPerDay: Float,
         val tickCount: Int,
         val beatErrorMs: Float?,
-    ) : EngineEvent
+    ) : EngineEvent {
+        val locked: Boolean get() = detectedBph > 0
+    }
 
     /** Engine/stream state snapshot; emitted on every state change. */
     data class Status(
@@ -108,7 +112,7 @@ object EventDecoder {
                 TYPE_RATE -> events.add(
                     EngineEvent.Rate(
                         activeBph = buffer[base + 1].toInt(),
-                        locked = buffer[base + 2] != 0f,
+                        detectedBph = buffer[base + 2].toInt(),
                         overridden = buffer[base + 3] != 0f,
                         rateValid = buffer[base + 4] != 0f,
                         secPerDay = buffer[base + 5],

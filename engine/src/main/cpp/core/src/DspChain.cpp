@@ -39,7 +39,7 @@ void DspChain::EmitRateFrame(Output& out) {
     const auto estimate = rateEstimator_.CurrentEstimate();
     out.rates.push_back({
         activeBph_,
-        rateDetector_.locked(),
+        rateDetector_.lockedBph(),
         overrideBph_ > 0,
         estimate.valid,
         static_cast<float>(estimate.secPerDay),

@@ -37,7 +37,8 @@ public:
 
     struct RateFrame {
         int activeBph;      // 0 while searching with no override
-        bool locked;        // detector currently locked
+        int detectedBph;    // detector's lock (0 = searching); keeps
+                            // reporting under an override for disagreement
         bool overridden;    // user override pins the rate
         bool rateValid;     // enough clean window to trust secPerDay
         float secPerDay;    // + = fast

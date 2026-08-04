@@ -170,7 +170,7 @@ void CaptureEngine::DspLoop() {
             events_.Push(MakeTickEvent(deltaFrames, tick.peakDb, tick.accepted));
         }
         for (const auto& rate : output.rates) {
-            events_.Push(MakeRateEvent(rate.activeBph, rate.locked, rate.overridden,
+            events_.Push(MakeRateEvent(rate.activeBph, rate.detectedBph, rate.overridden,
                                        rate.rateValid, rate.secPerDay, rate.tickCount,
                                        rate.beatErrorMs));
         }
