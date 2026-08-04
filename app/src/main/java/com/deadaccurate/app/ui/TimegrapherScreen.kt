@@ -191,9 +191,9 @@ private fun Notices(state: TimegrapherUiState, onDismissInputLost: () -> Unit) {
     }
     if (state.noTicksHint) {
         NoticeCard(
-            text = "No ticks are clearing the noise gate. Try lowering the " +
-                "gate trim, repositioning the watch on the microphone, or " +
-                "recalibrating.",
+            text = "No ticks detected. Try tapping Recalibrate with the " +
+                "watch in place, adjusting the gate trim, or pressing the " +
+                "watch more firmly against the microphone.",
         )
     }
     if (!state.unprocessedSupported) {

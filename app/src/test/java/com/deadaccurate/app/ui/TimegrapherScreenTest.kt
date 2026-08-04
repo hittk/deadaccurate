@@ -114,8 +114,9 @@ class TimegrapherScreenTest {
     fun noTicksHintAppears() {
         setCapture(TimegrapherUiState(hasPermission = true, noTicksHint = true))
         compose.onNodeWithText(
-            "No ticks are clearing the noise gate. Try lowering the gate " +
-                "trim, repositioning the watch on the microphone, or recalibrating.",
+            "No ticks detected. Try tapping Recalibrate with the watch in " +
+                "place, adjusting the gate trim, or pressing the watch more " +
+                "firmly against the microphone.",
         ).assertExists()
     }
 

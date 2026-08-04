@@ -20,6 +20,12 @@ public:
         float hysteresisDb = 6.0f;
         double holdMs = 15.0;
         double adaptSeconds = 2.0;        // floor adaptation time constant
+        // A tick burst holds the gate open for tens of ms; continuously
+        // open for this long means the floor estimate is stale (e.g. the
+        // input path's AGC ramped ambient past the threshold after
+        // calibration) and the gate must re-measure or it will never see
+        // another tick edge.
+        double stuckOpenSeconds = 3.0;
     };
 
     explicit NoiseGate(int sampleRate);  // default Config
@@ -46,6 +52,7 @@ private:
     const int sampleRate_;
     const Config config_;
     const int holdFrames_;
+    const int stuckOpenFrames_;
     const float adaptAlpha_;
 
     bool calibrating_ = false;
@@ -60,6 +67,7 @@ private:
 
     bool open_ = false;
     int holdRemaining_ = 0;
+    int openStreak_ = 0;
 };
 
 }  // namespace deadaccurate

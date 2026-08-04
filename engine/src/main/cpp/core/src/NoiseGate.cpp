@@ -26,6 +26,7 @@ NoiseGate::NoiseGate(int sampleRate, const Config& config)
     : sampleRate_(sampleRate),
       config_(config),
       holdFrames_(static_cast<int>(config.holdMs / 1000.0 * sampleRate)),
+      stuckOpenFrames_(static_cast<int>(config.stuckOpenSeconds * sampleRate)),
       adaptAlpha_(static_cast<float>(
           1.0 - std::exp(-1.0 / (config.adaptSeconds * sampleRate)))),
       floor_(kMinFloor) {
@@ -37,6 +38,7 @@ void NoiseGate::StartCalibration() {
     calibrating_ = true;
     open_ = false;
     holdRemaining_ = 0;
+    openStreak_ = 0;
     calibrationSamples_.clear();
     calibrationTarget_ = static_cast<size_t>(config_.calibrationSeconds * sampleRate_ /
                                              config_.calibrationDecimation);
@@ -78,10 +80,16 @@ bool NoiseGate::Process(float envelope) {
     }
 
     if (open_) {
+        // Stuck-open watchdog: the floor is stale, re-measure it.
+        if (++openStreak_ > stuckOpenFrames_) {
+            StartCalibration();
+            return false;
+        }
         if (envelope >= floor_ * closeFactor_) {
             holdRemaining_ = holdFrames_;
         } else if (--holdRemaining_ <= 0) {
             open_ = false;
+            openStreak_ = 0;
         }
     } else {
         // Adapt the floor toward gradual ambient changes only while closed;

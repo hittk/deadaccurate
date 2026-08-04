@@ -12,12 +12,30 @@ android {
         applicationId = "com.deadaccurate.app"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
+    }
+
+    // One committed keystore signs every build type in every environment
+    // (local, CI, cloud), so any newer APK installs over any older one —
+    // no uninstalls between updates. The key is deliberately in-repo with a
+    // known password: it exists for update continuity on test devices, not
+    // secrecy. Generate a fresh private key before any store distribution.
+    signingConfigs {
+        create("shared") {
+            storeFile = rootProject.file("signing/deadaccurate.keystore")
+            storePassword = "deadaccurate"
+            keyAlias = "deadaccurate"
+            keyPassword = "deadaccurate"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
+            signingConfig = signingConfigs.getByName("shared")
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

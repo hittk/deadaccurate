@@ -87,6 +87,45 @@ TEST(NoiseGate, AdaptsFloorTowardAmbientDrift) {
     EXPECT_TRUE(gate.openThresholdDb() > before + 4.0f);
 }
 
+TEST(NoiseGate, RecalibratesWhenStuckOpen) {
+    // Field-observed failure: input AGC ramps ambient far above the
+    // calibrated threshold after the calibration window, jamming the gate
+    // open so no tick edge can ever fire. The watchdog must re-measure.
+    NoiseGate gate = CalibratedGate();  // floor 0.001, threshold ~0.004
+    EXPECT_TRUE(gate.Process(0.05f));   // ambient jumps and stays high
+
+    // Held open for 3 s -> watchdog triggers a recalibration.
+    bool sawRecalibration = false;
+    for (int i = 0; i < kSampleRate * 4 && !sawRecalibration; ++i) {
+        gate.Process(0.05f);
+        sawRecalibration = gate.calibrating();
+    }
+    EXPECT_TRUE(sawRecalibration);
+
+    // Finish calibrating against the new ambient; the gate now sits closed
+    // under it and a louder tick opens it again.
+    for (int i = 0; i < kSampleRate; ++i) {
+        gate.Process(0.05f);
+    }
+    EXPECT_TRUE(!gate.calibrating());
+    EXPECT_TRUE(!gate.Process(0.05f));
+    EXPECT_TRUE(gate.Process(0.5f));
+}
+
+TEST(NoiseGate, TickBurstsDoNotTriggerTheWatchdog) {
+    NoiseGate gate = CalibratedGate();
+    // 8 seconds of realistic ticking: 30 ms bursts every 125 ms.
+    for (int beat = 0; beat < 64; ++beat) {
+        for (int i = 0; i < 30; ++i) {
+            gate.Process(0.05f);
+        }
+        for (int i = 0; i < 95; ++i) {
+            gate.Process(kAmbient);
+        }
+        EXPECT_TRUE(!gate.calibrating());
+    }
+}
+
 TEST(NoiseGate, MedianCalibrationIgnoresTicksInTheWindow) {
     NoiseGate gate(kSampleRate);
     // 20% of calibration samples are tick-elevated; the median must land on

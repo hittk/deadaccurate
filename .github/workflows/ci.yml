@@ -21,8 +21,8 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Assemble debug
-        run: ./gradlew assembleDebug
+      - name: Assemble
+        run: ./gradlew assembleDebug assembleRelease
 
       - name: JVM unit tests
         run: ./gradlew testDebugUnitTest
@@ -30,7 +30,15 @@ jobs:
       - name: Detekt
         run: ./gradlew detekt
 
-      # Every run publishes an installable build: Actions -> run -> Artifacts.
+      # Every run publishes an installable build (Actions -> run ->
+      # Artifacts). Both builds are signed with the committed project key,
+      # so each newer APK installs over the previous one.
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: deadaccurate-apk
+          path: app/build/outputs/apk/release/app-release.apk
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
