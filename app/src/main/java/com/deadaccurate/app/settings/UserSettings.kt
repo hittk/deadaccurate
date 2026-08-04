@@ -9,6 +9,15 @@ enum class InputPreference {
     BUILT_IN,
 }
 
+/** Which detection path drives the readouts. */
+enum class AnalysisMode(val native: Int) {
+    /** Per-tick gate edges: precise and fast, needs piezo-level signal. */
+    EDGE(com.deadaccurate.engine.AnalysisModeNative.EDGE),
+
+    /** Energy folding: works at phone-mic signal levels, settles slower. */
+    CORRELATION(com.deadaccurate.engine.AnalysisModeNative.CORRELATION),
+}
+
 /** Settings persisted across launches (FR-7). */
 data class UserSettings(
     val gateTrimDb: Float = 0f,
@@ -23,4 +32,5 @@ data class UserSettings(
      * measured once against a reference — restores absolute accuracy.
      */
     val clockCalSecPerDay: Float = 0f,
+    val analysisMode: AnalysisMode = AnalysisMode.EDGE,
 )

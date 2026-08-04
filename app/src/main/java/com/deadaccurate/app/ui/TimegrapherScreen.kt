@@ -63,6 +63,7 @@ fun TimegrapherScreen(viewModel: TimegrapherViewModel = viewModel()) {
         onSetGateTrim = viewModel::setGateTrimDb,
         onRecalibrate = viewModel::recalibrateGate,
         onSetInputPreference = viewModel::setInputPreference,
+        onSetAnalysisMode = viewModel::setAnalysisMode,
         onDismissOnboarding = viewModel::dismissOnboarding,
         onReplayFile = viewModel::replayFile,
         onRunDemo = viewModel::runDemo,
@@ -135,6 +136,7 @@ internal fun CaptureContent(
     ) {
         Text("DeadAccurate", style = MaterialTheme.typography.headlineMedium)
         InputSelector(state, actions.onSetInputPreference)
+        AnalysisModeSelector(mode = state.analysisMode, onSelect = actions.onSetAnalysisMode)
         if (!state.onboardingDismissed) {
             OnboardingCard(onDismiss = actions.onDismissOnboarding)
         }

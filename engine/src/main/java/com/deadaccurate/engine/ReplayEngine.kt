@@ -22,6 +22,12 @@ class ReplayEngine(sampleRate: Int) : AutoCloseable {
         nativeSetGateTrimDb(handle, trimDb)
     }
 
+    /** [AnalysisModeNative] value. */
+    fun setAnalysisMode(mode: Int) {
+        checkOpen()
+        nativeSetAnalysisMode(handle, mode)
+    }
+
     fun process(samples: FloatArray, count: Int = samples.size): List<EngineEvent> {
         checkOpen()
         require(count <= CHUNK_FRAMES) { "chunk too large: $count" }
@@ -41,6 +47,7 @@ class ReplayEngine(sampleRate: Int) : AutoCloseable {
     private external fun nativeCreate(sampleRate: Int): Long
     private external fun nativeSetBphOverride(handle: Long, bph: Int)
     private external fun nativeSetGateTrimDb(handle: Long, trimDb: Float)
+    private external fun nativeSetAnalysisMode(handle: Long, mode: Int)
     private external fun nativeProcess(
         handle: Long,
         samples: FloatArray,

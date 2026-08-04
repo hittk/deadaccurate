@@ -49,6 +49,14 @@ Java_com_deadaccurate_engine_ReplayEngine_nativeSetGateTrimDb(JNIEnv* /*env*/,
     FromHandle(handle)->chain.SetGateTrimDb(trimDb);
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_deadaccurate_engine_ReplayEngine_nativeSetAnalysisMode(JNIEnv* /*env*/,
+                                                                jobject /*thiz*/,
+                                                                jlong handle, jint mode) {
+    FromHandle(handle)->chain.SetAnalysisMode(
+        static_cast<deadaccurate::DspChain::AnalysisMode>(mode));
+}
+
 extern "C" JNIEXPORT jint JNICALL
 Java_com_deadaccurate_engine_ReplayEngine_nativeProcess(JNIEnv* env, jobject /*thiz*/,
                                                         jlong handle, jfloatArray samples,
@@ -81,6 +89,10 @@ Java_com_deadaccurate_engine_ReplayEngine_nativeProcess(JNIEnv* env, jobject /*t
                                                      rate.overridden, rate.rateValid,
                                                      rate.secPerDay, rate.tickCount,
                                                      rate.beatErrorMs));
+    }
+    for (const auto& phase : session->output.phases) {
+        events.push_back(
+            deadaccurate::MakePhaseEvent(phase.phaseDeviationMs, phase.periodMs));
     }
 
     const size_t capacity =

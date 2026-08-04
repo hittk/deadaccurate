@@ -29,6 +29,7 @@ class TimegrapherScreenTest {
     private fun actions(
         onDismissInputLost: () -> Unit = {},
         onDismissOnboarding: () -> Unit = {},
+        onSetAnalysisMode: (com.deadaccurate.app.settings.AnalysisMode) -> Unit = {},
     ) = CaptureActions(
         onToggleCapture = {},
         onDismissInputLost = onDismissInputLost,
@@ -36,6 +37,7 @@ class TimegrapherScreenTest {
         onSetGateTrim = {},
         onRecalibrate = {},
         onSetInputPreference = {},
+        onSetAnalysisMode = onSetAnalysisMode,
         onDismissOnboarding = onDismissOnboarding,
         onReplayFile = {},
         onRunDemo = {},
@@ -164,6 +166,17 @@ class TimegrapherScreenTest {
             ),
         )
         compose.onNodeWithText("Export CSV").performScrollTo().performClick()
+    }
+
+    @Test
+    fun analysisModeSwitchInvokesCallback() {
+        var selected: com.deadaccurate.app.settings.AnalysisMode? = null
+        setCapture(
+            TimegrapherUiState(hasPermission = true),
+            actions(onSetAnalysisMode = { selected = it }),
+        )
+        compose.onNodeWithText("Phone mic · correlation").performScrollTo().performClick()
+        assertTrue(selected == com.deadaccurate.app.settings.AnalysisMode.CORRELATION)
     }
 
     @Test

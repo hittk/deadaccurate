@@ -31,6 +31,13 @@ sealed interface EngineEvent {
     ) : EngineEvent
 
     /**
+     * Correlation-mode trace feed (~2 Hz): the folded peak's phase drift,
+     * wrapped to ±period/2. Plays the trace role that per-tick events play
+     * in edge mode.
+     */
+    data class Phase(val phaseDeviationMs: Float, val periodMs: Float) : EngineEvent
+
+    /**
      * Beat-rate identification and rate-deviation snapshot (~2 Hz plus on
      * every change). [activeBph] 0 means still searching with no override;
      * [detectedBph] is the detector's lock (0 = searching) and keeps
@@ -78,6 +85,15 @@ object InputPreset {
     const val UNPROCESSED = 9
 }
 
+/** Native analysis-mode values; mirrors DspChain::AnalysisMode. */
+object AnalysisModeNative {
+    /** Per-tick gate edges: precise, needs piezo-level SNR. */
+    const val EDGE = 0
+
+    /** Energy folding: works at phone-mic SNR, settles over tens of seconds. */
+    const val CORRELATION = 1
+}
+
 object EventDecoder {
     /** Floats per event record; mirrors kEventFloats in Events.h. */
     const val EVENT_FLOATS = 8
@@ -86,6 +102,7 @@ object EventDecoder {
     private const val TYPE_STATUS = 2
     private const val TYPE_TICK = 3
     private const val TYPE_RATE = 4
+    private const val TYPE_PHASE = 5
 
     /** Decodes [count] records from [buffer] as filled by nativeDrainEvents. */
     fun decode(buffer: FloatArray, count: Int): List<EngineEvent> {
@@ -128,6 +145,12 @@ object EventDecoder {
                         exclusiveMode = buffer[base + 4] != 0f,
                         deviceId = buffer[base + 5].toInt(),
                         errorCode = buffer[base + 6].toInt(),
+                    ),
+                )
+                TYPE_PHASE -> events.add(
+                    EngineEvent.Phase(
+                        phaseDeviationMs = buffer[base + 1],
+                        periodMs = buffer[base + 2],
                     ),
                 )
                 // Unknown types are skipped: a newer native lib may emit

@@ -147,3 +147,33 @@ M5 calibration lands. The UI copy must not overclaim.
   `engine/src/test/fixtures/` with known-good reference readings from a
   commercial timegrapher for cross-checking.
 - Host-built DSP (see architecture §2) runs these in ctest; no device needed.
+
+## 9. Correlation mode (low-SNR path)
+
+Field testing showed the edge chain's limit: a phone microphone behind AGC
+leaves ticks only ~8–10 dB above ambient, below any workable gate margin.
+Correlation mode — selectable in the UI alongside the edge path — recovers
+the measurement by integrating over beats instead of judging each one:
+
+- The envelope is reduced to 1 ms mean-removed energy bins (~16 s history).
+- Every 0.5 s each standard rate is scored by folding the last 8 s at its
+  period into 64 phase slots: ticks stack into a peak, noise averages flat.
+  Score = peak height over profile sigma; lock/unlock uses hysteresis like
+  the edge detector. A candidate whose *double*-period fold shows a single
+  peak is a half-period alias (an 18000 watch folds cleanly at 100 ms too)
+  and is penalized — the true period always shows both beats at the 2×fold.
+- Once locked, exponentially-weighted profiles at P and 2P accumulate. The
+  P-profile peak (parabolic sub-slot interpolation) is tracked over time;
+  its drift slope is the rate (fast watch → phase arrives earlier). Phase
+  points are only recorded after ~2.5 profile time constants so the EW lag
+  transient cannot bias the slope. The 2P profile's two peaks give beat
+  error from their separation vs P.
+- The trace shows the folded peak's wrapped drift (~2 dots/s) instead of
+  per-tick dots.
+
+Golden tests hold correlation mode to lock + ±1 s/day + ±0.5 ms beat error
+at an SNR where the edge chain produces zero valid ticks, to stay silent
+on pure noise, and to resolve the 18000/36000 alias in both directions.
+Trade-off: readings settle over ~30 s instead of ~10 s, and per-tick
+outlier visibility is lost — which is why the edge path remains the piezo
+default.

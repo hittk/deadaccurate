@@ -18,6 +18,33 @@ import androidx.compose.ui.unit.dp
 import com.deadaccurate.app.TimegrapherUiState
 import kotlin.math.roundToInt
 
+/**
+ * Detection-path switch: edge detection for a wired piezo's strong signal,
+ * energy folding (correlation) for the built-in microphone.
+ */
+@Composable
+fun AnalysisModeSelector(
+    mode: com.deadaccurate.app.settings.AnalysisMode,
+    onSelect: (com.deadaccurate.app.settings.AnalysisMode) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FilterChip(
+            selected = mode == com.deadaccurate.app.settings.AnalysisMode.EDGE,
+            onClick = { onSelect(com.deadaccurate.app.settings.AnalysisMode.EDGE) },
+            label = { Text("Piezo · edge") },
+        )
+        FilterChip(
+            selected = mode == com.deadaccurate.app.settings.AnalysisMode.CORRELATION,
+            onClick = { onSelect(com.deadaccurate.app.settings.AnalysisMode.CORRELATION) },
+            label = { Text("Phone mic · correlation") },
+        )
+    }
+}
+
 /** Beat-rate control (FR-4): auto-detection by default, tap to pin. */
 @Composable
 fun RateSelector(

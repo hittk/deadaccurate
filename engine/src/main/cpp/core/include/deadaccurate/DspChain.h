@@ -7,6 +7,7 @@
 #include "deadaccurate/BeatRateDetector.h"
 #include "deadaccurate/Biquad.h"
 #include "deadaccurate/EnvelopeFollower.h"
+#include "deadaccurate/FoldingAnalyzer.h"
 #include "deadaccurate/LevelAnalyzer.h"
 #include "deadaccurate/NoiseGate.h"
 #include "deadaccurate/RateEstimator.h"
@@ -14,13 +15,19 @@
 
 namespace deadaccurate {
 
-// The full v1 chain (docs/03-signal-processing.md):
-//   band-pass -> envelope -> noise gate -> tick detector
-//   -> beat-rate identification -> rate estimation (s/day)
-// plus hop-rate level telemetry. Runs on the DSP thread; everything here is
-// platform-free and deterministic.
+// The full chain (docs/03-signal-processing.md):
+//   band-pass -> envelope -> { edge path: gate -> tick detector -> rate
+//   estimation | correlation path: energy folding }
+// plus hop-rate level telemetry. Both analysis paths are always fed so the
+// user can switch instantly; the mode selects which one drives the output
+// events. Runs on the DSP thread; everything here is platform-free and
+// deterministic.
 class DspChain {
 public:
+    enum class AnalysisMode {
+        kEdge = 0,         // per-tick gate edges: precise, needs piezo SNR
+        kCorrelation = 1,  // energy folding: phone-mic SNR, slower to settle
+    };
     struct LevelFrame {
         float rmsDb;          // envelope RMS over the hop
         float peakDb;         // envelope peak over the hop
@@ -46,10 +53,17 @@ public:
         float beatErrorMs;  // negative = not yet measurable
     };
 
+    // Correlation-mode trace feed: the folded peak's drift, ~2 Hz.
+    struct PhaseFrame {
+        float phaseDeviationMs;  // wrapped to ±period/2
+        float periodMs;
+    };
+
     struct Output {
         std::vector<LevelFrame> levels;
         std::vector<TickEvent> ticks;
         std::vector<RateFrame> rates;
+        std::vector<PhaseFrame> phases;
     };
 
     explicit DspChain(int sampleRate);
@@ -59,6 +73,7 @@ public:
     void RecalibrateGate() { gate_.StartCalibration(); }
     // FR-4: a positive bph pins the rate; 0 returns to auto-detection.
     void SetBphOverride(int bph);
+    void SetAnalysisMode(AnalysisMode mode);
 
     // Clears and refills `out` from `count` input samples.
     void Process(const float* samples, size_t count, Output& out);
@@ -83,8 +98,10 @@ private:
     LevelAnalyzer levelAnalyzer_;
     BeatRateDetector rateDetector_;
     RateEstimator rateEstimator_;
+    FoldingAnalyzer folding_;
     std::vector<LevelAnalyzer::Level> levelScratch_;
 
+    AnalysisMode mode_ = AnalysisMode::kEdge;
     int overrideBph_ = 0;
     int activeBph_ = 0;
     int levelHopCounter_ = 0;

@@ -16,7 +16,12 @@ import kotlinx.coroutines.withContext
 class ReplayAnalyzer(private val contentResolver: ContentResolver) {
 
     /** Chain settings applied before the offline run. */
-    data class Config(val bphOverride: Int, val gateTrimDb: Float)
+    data class Config(
+        val bphOverride: Int,
+        val gateTrimDb: Float,
+        /** [com.deadaccurate.engine.AnalysisModeNative] value. */
+        val analysisMode: Int,
+    )
 
     /**
      * Parses [uri], then streams it through a [ReplayEngine]. [onStart]
@@ -50,6 +55,7 @@ class ReplayAnalyzer(private val contentResolver: ContentResolver) {
         ReplayEngine(sampleRate).use { engine ->
             engine.setBphOverride(config.bphOverride)
             engine.setGateTrimDb(config.gateTrimDb)
+            engine.setAnalysisMode(config.analysisMode)
 
             val chunk = FloatArray(ReplayEngine.CHUNK_FRAMES)
             var offset = 0

@@ -80,6 +80,17 @@ class EventDecoderTest {
     }
 
     @Test
+    fun decodesPhaseEvent() {
+        val buffer = record(5f, -12.5f, 125f)
+        val events = EventDecoder.decode(buffer, 1)
+
+        assertEquals(
+            listOf(EngineEvent.Phase(phaseDeviationMs = -12.5f, periodMs = 125f)),
+            events,
+        )
+    }
+
+    @Test
     fun decodesStatusEvent() {
         val buffer = record(2f, 1f, 48000f, 1f, 0f, 22f, 0f)
         val events = EventDecoder.decode(buffer, 1)

@@ -31,6 +31,9 @@ internal object NativeEngine {
     /** Positive pins the beat rate; 0 returns to auto-detection. */
     external fun nativeSetBphOverride(handle: Long, bph: Int)
 
+    /** [AnalysisModeNative] value. */
+    external fun nativeSetAnalysisMode(handle: Long, mode: Int)
+
     /**
      * Fills [out] with flat event records ([EventDecoder.EVENT_FLOATS] floats
      * each) and returns the number of events written.

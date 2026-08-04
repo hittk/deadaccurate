@@ -55,6 +55,12 @@ class AudioEngine {
         NativeEngine.nativeSetBphOverride(handle, bph)
     }
 
+    /** [AnalysisModeNative] value; switchable live, both paths stay warm. */
+    fun setAnalysisMode(mode: Int) {
+        ensureHandle()
+        NativeEngine.nativeSetAnalysisMode(handle, mode)
+    }
+
     private fun ensureHandle() {
         if (handle == 0L) {
             handle = NativeEngine.nativeCreate()

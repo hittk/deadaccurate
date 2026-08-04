@@ -122,8 +122,10 @@ void CaptureEngine::DspLoop() {
 
     float appliedTrimDb = gateTrimDb_.load();
     int appliedBph = bphOverride_.load();
+    int appliedMode = analysisMode_.load();
     chain.SetGateTrimDb(appliedTrimDb);
     chain.SetBphOverride(appliedBph);
+    chain.SetAnalysisMode(static_cast<DspChain::AnalysisMode>(appliedMode));
     int64_t previousTickFrame = -1;
 
     events_.Push(MakeStatusEvent(EngineState::kRunning, sampleRate_, unprocessed_,
@@ -149,6 +151,11 @@ void CaptureEngine::DspLoop() {
         if (recalibrateRequested_.exchange(false)) {
             chain.RecalibrateGate();
         }
+        const int mode = analysisMode_.load();
+        if (mode != appliedMode) {
+            appliedMode = mode;
+            chain.SetAnalysisMode(static_cast<DspChain::AnalysisMode>(mode));
+        }
 
         const size_t n = ringBuffer_.Read(scratch.data(), scratch.size());
         if (n == 0) {
@@ -173,6 +180,9 @@ void CaptureEngine::DspLoop() {
             events_.Push(MakeRateEvent(rate.activeBph, rate.detectedBph, rate.overridden,
                                        rate.rateValid, rate.secPerDay, rate.tickCount,
                                        rate.beatErrorMs));
+        }
+        for (const auto& phase : output.phases) {
+            events_.Push(MakePhaseEvent(phase.phaseDeviationMs, phase.periodMs));
         }
     }
 }

@@ -52,6 +52,7 @@ class SettingsRepositoryTest {
         repository.setInputPreference(InputPreference.BUILT_IN)
         repository.setOnboardingDismissed(true)
         repository.setClockCalSecPerDay(-1.7f)
+        repository.setAnalysisMode(AnalysisMode.CORRELATION)
 
         assertEquals(
             UserSettings(
@@ -60,6 +61,7 @@ class SettingsRepositoryTest {
                 inputPreference = InputPreference.BUILT_IN,
                 onboardingDismissed = true,
                 clockCalSecPerDay = -1.7f,
+                analysisMode = AnalysisMode.CORRELATION,
             ),
             repository.settings.first(),
         )

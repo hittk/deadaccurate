@@ -10,11 +10,20 @@ DspChain::DspChain(int sampleRate)
       tickDetector_(sampleRate),
       levelAnalyzer_(static_cast<size_t>(sampleRate / kLevelFramesPerSecond)),
       rateDetector_(sampleRate),
-      rateEstimator_(sampleRate) {}
+      rateEstimator_(sampleRate),
+      folding_(sampleRate) {}
 
 void DspChain::SetBphOverride(int bph) {
     overrideBph_ = bph > 0 ? bph : 0;
+    folding_.SetBphOverride(overrideBph_);
     ResolveActiveRate();
+}
+
+void DspChain::SetAnalysisMode(AnalysisMode mode) {
+    if (mode != mode_) {
+        mode_ = mode;
+        rateDirty_ = true;
+    }
 }
 
 void DspChain::ResolveActiveRate() {
@@ -53,17 +62,41 @@ void DspChain::Process(const float* samples, size_t count, Output& out) {
     out.levels.clear();
     out.ticks.clear();
     out.rates.clear();
+    out.phases.clear();
 
     for (size_t i = 0; i < count; ++i) {
         const float filtered = bandPass_.Process(samples[i]);
         const float env = envelope_.Process(filtered);
         const bool gateOpen = gate_.Process(env);
 
+        // Edge path: always runs (cheap, and keeps it warm across mode
+        // switches); only emits in edge mode.
         if (auto tick = tickDetector_.Process(env, gateOpen)) {
             rateDetector_.AddOnset(tick->frameIndex);
             ResolveActiveRate();
             const auto result = rateEstimator_.AddTick(tick->frameIndex);
-            out.ticks.push_back({tick->frameIndex, tick->peakDb, result.accepted});
+            if (mode_ == AnalysisMode::kEdge) {
+                out.ticks.push_back({tick->frameIndex, tick->peakDb, result.accepted});
+            }
+        }
+
+        // Correlation path: likewise always fed.
+        FoldingAnalyzer::Snapshot snapshot;
+        if (folding_.Push(&env, 1, &snapshot) &&
+            mode_ == AnalysisMode::kCorrelation) {
+            out.rates.push_back({
+                snapshot.activeBph,
+                snapshot.detectedBph,
+                snapshot.overridden,
+                snapshot.rateValid,
+                snapshot.secPerDay,
+                snapshot.beatCount,
+                snapshot.beatErrorMs,
+            });
+            if (snapshot.phaseValid) {
+                out.phases.push_back({snapshot.phaseDeviationMs, snapshot.periodMs});
+            }
+            rateDirty_ = false;
         }
 
         // The meter reads the envelope so its bar and the gate threshold
@@ -78,13 +111,14 @@ void DspChain::Process(const float* samples, size_t count, Output& out) {
                 gateOpen,
                 gate_.calibrating(),
             });
-            if (++levelHopCounter_ >= kLevelHopsPerRateFrame) {
+            if (mode_ == AnalysisMode::kEdge &&
+                ++levelHopCounter_ >= kLevelHopsPerRateFrame) {
                 levelHopCounter_ = 0;
                 rateDirty_ = true;
             }
         }
 
-        if (rateDirty_) {
+        if (mode_ == AnalysisMode::kEdge && rateDirty_) {
             EmitRateFrame(out);
         }
     }

@@ -13,6 +13,7 @@ add_library(deadaccurate_core STATIC
     src/DspChain.cpp
     src/BeatRateDetector.cpp
     src/RateEstimator.cpp
+    src/FoldingAnalyzer.cpp
 )
 
 target_include_directories(deadaccurate_core PUBLIC include)

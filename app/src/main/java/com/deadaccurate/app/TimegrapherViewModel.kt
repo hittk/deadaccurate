@@ -12,6 +12,7 @@ import com.deadaccurate.app.export.SessionTick
 import com.deadaccurate.app.replay.DemoSignal
 import com.deadaccurate.app.replay.ReplayAnalyzer
 import com.deadaccurate.app.replay.WavReader
+import com.deadaccurate.app.settings.AnalysisMode
 import com.deadaccurate.app.settings.InputPreference
 import java.io.IOException
 import com.deadaccurate.app.settings.SettingsRepository
@@ -64,6 +65,7 @@ data class TimegrapherUiState(
     val traceHalfRangeMs: Float = DEFAULT_HALF_RANGE_MS,
     val wiredInputName: String? = null,
     val inputPreference: InputPreference = InputPreference.AUTO,
+    val analysisMode: AnalysisMode = AnalysisMode.EDGE,
     val inputLost: Boolean = false,
     val noTicksHint: Boolean = false,
     val onboardingDismissed: Boolean = true,
@@ -131,11 +133,13 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         val stored = settingsRepository.settings.first()
         engine.setGateTrimDb(stored.gateTrimDb)
         engine.setBphOverride(stored.bphOverride ?: 0)
+        engine.setAnalysisMode(stored.analysisMode.native)
         _uiState.update {
             it.copy(
                 gateTrimDb = stored.gateTrimDb,
                 bphOverride = stored.bphOverride,
                 inputPreference = stored.inputPreference,
+                analysisMode = stored.analysisMode,
                 onboardingDismissed = stored.onboardingDismissed,
                 clockCalSecPerDay = stored.clockCalSecPerDay,
             )
@@ -171,6 +175,17 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         engine.setGateTrimDb(trimDb)
         _uiState.update { it.copy(gateTrimDb = trimDb) }
         viewModelScope.launch { settingsRepository.setGateTrimDb(trimDb) }
+    }
+
+    /** Switches detection path; applies live, the trace restarts. */
+    fun setAnalysisMode(mode: AnalysisMode) {
+        if (mode == _uiState.value.analysisMode) return
+        engine.setAnalysisMode(mode.native)
+        _uiState.update { it.copy(analysisMode = mode) }
+        viewModelScope.launch { settingsRepository.setAnalysisMode(mode) }
+        // Edge draws per-tick dots, correlation draws the folded phase —
+        // the two traces don't mix.
+        clearAnalysis()
     }
 
     fun setInputPreference(preference: InputPreference) {
@@ -214,6 +229,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 config = ReplayAnalyzer.Config(
                     bphOverride = _uiState.value.bphOverride ?: 0,
                     gateTrimDb = _uiState.value.gateTrimDb,
+                    analysisMode = _uiState.value.analysisMode.native,
                 ),
                 onStart = onStart,
                 onEvent = ::onEngineEvent,
@@ -232,6 +248,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 config = ReplayAnalyzer.Config(
                     bphOverride = _uiState.value.bphOverride ?: 0,
                     gateTrimDb = 0f,
+                    analysisMode = _uiState.value.analysisMode.native,
                 ),
                 onStart = onStart,
                 onEvent = ::onEngineEvent,
@@ -307,6 +324,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         // The DSP chain reads these when its thread spins up.
         engine.setBphOverride(_uiState.value.bphOverride ?: 0)
         engine.setGateTrimDb(_uiState.value.gateTrimDb)
+        engine.setAnalysisMode(_uiState.value.analysisMode.native)
 
         val result = engine.start(deviceId, preset)
         if (result != 0) {
@@ -353,6 +371,8 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
             is EngineEvent.Level -> onLevel(event)
 
             is EngineEvent.Tick -> onTick(event)
+
+            is EngineEvent.Phase -> onPhase(event)
 
             is EngineEvent.Rate -> onRate(event)
 
@@ -423,6 +443,21 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 secPerDay = event.secPerDay,
                 beatErrorMs = event.beatErrorMs,
                 rateTickCount = event.tickCount,
+            )
+        }
+    }
+
+    /** Correlation-mode trace: the folded peak's drift, one dot per ~0.5 s. */
+    private fun onPhase(phase: EngineEvent.Phase) {
+        levelsSinceTick = 0
+        traceBuffer.addLast(TracePoint(phase.phaseDeviationMs, accepted = true))
+        while (traceBuffer.size > TimegrapherUiState.TRACE_CAPACITY) {
+            traceBuffer.removeFirst()
+        }
+        _uiState.update {
+            it.copy(
+                tracePoints = traceBuffer.toList(),
+                traceHalfRangeMs = phase.periodMs / 2f,
             )
         }
     }

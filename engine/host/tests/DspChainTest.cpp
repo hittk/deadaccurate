@@ -51,6 +51,57 @@ std::vector<float> SyntheticWatchSignal(int seconds, double periodFrames,
     return signal;
 }
 
+// Phone-mic conditions: heavy ambient noise (AGC-pumped) with ticks only a
+// few dB proud of it. Edge detection cannot work here; correlation must.
+std::vector<float> LowSnrWatchSignal(int seconds, double periodFrames,
+                                     int beatErrorFrames = 0) {
+    Lcg lcg{99};
+    std::vector<float> signal(static_cast<size_t>(seconds) * kSampleRate);
+    for (auto& sample : signal) {
+        sample = 0.02f * lcg.Next();
+    }
+    constexpr int kBurstFrames = 96;
+    constexpr float kBurstDecayFrames = 24.0f;
+    for (size_t beat = 0;; ++beat) {
+        const auto start = static_cast<size_t>(beat * periodFrames) +
+                           (beat % 2 == 1 ? beatErrorFrames : 0);
+        if (start + kBurstFrames >= signal.size()) {
+            break;
+        }
+        for (int j = 0; j < kBurstFrames; ++j) {
+            signal[start + j] += static_cast<float>(
+                0.04 * std::exp(-j / kBurstDecayFrames) *
+                std::sin(2.0 * M_PI * 5000.0 * j / kSampleRate));
+        }
+    }
+    return signal;
+}
+
+DspChain::RateFrame RunChain(DspChain& chain, const std::vector<float>& signal,
+                             size_t* phaseFrames = nullptr, int* tickCount = nullptr,
+                             bool* everLocked = nullptr) {
+    DspChain::Output output;
+    DspChain::RateFrame last{};
+    constexpr size_t kChunk = 1024;
+    for (size_t offset = 0; offset < signal.size(); offset += kChunk) {
+        const size_t n = std::min(kChunk, signal.size() - offset);
+        chain.Process(signal.data() + offset, n, output);
+        for (const auto& rate : output.rates) {
+            last = rate;
+            if (everLocked != nullptr && rate.activeBph != 0) {
+                *everLocked = true;
+            }
+        }
+        if (phaseFrames != nullptr) {
+            *phaseFrames += output.phases.size();
+        }
+        if (tickCount != nullptr) {
+            *tickCount += static_cast<int>(output.ticks.size());
+        }
+    }
+    return last;
+}
+
 }  // namespace
 
 TEST(DspChain, DetectsSyntheticTickTrain) {
@@ -206,6 +257,76 @@ TEST(DspChain, OverridePinsTheRateImmediately) {
     // The detector keeps scoring in the background so the UI can flag the
     // disagreement (FR-4).
     EXPECT_EQ(last.detectedBph, kBph);
+}
+
+TEST(DspChain, CorrelationLocksAndMeasuresWhereEdgeCannot) {
+    // ~+14.4 s/day fast at phone-mic SNR. 60 s: the folded-phase regression
+    // needs the profile settled (~20 s) plus a clean span.
+    const std::vector<float> signal = LowSnrWatchSignal(60, 5999.0);
+
+    // Edge mode gets nothing: ticks never clear a gate 12 dB over this floor.
+    DspChain edgeChain(kSampleRate);
+    edgeChain.SetAnalysisMode(DspChain::AnalysisMode::kEdge);
+    int edgeTicks = 0;
+    const auto edgeLast = RunChain(edgeChain, signal, nullptr, &edgeTicks);
+    EXPECT_TRUE(!edgeLast.rateValid);
+    EXPECT_TRUE(edgeTicks < 20);
+
+    // Correlation mode locks and measures.
+    DspChain chain(kSampleRate);
+    chain.SetAnalysisMode(DspChain::AnalysisMode::kCorrelation);
+    size_t phaseFrames = 0;
+    const auto last = RunChain(chain, signal, &phaseFrames);
+    EXPECT_EQ(last.activeBph, kBph);
+    EXPECT_EQ(last.detectedBph, kBph);
+    EXPECT_TRUE(last.rateValid);
+    EXPECT_NEAR(last.secPerDay, 14.4, 1.0);
+    EXPECT_TRUE(phaseFrames > 10);  // the trace has something to draw
+}
+
+TEST(DspChain, CorrelationStaysUnlockedOnPureNoise) {
+    Lcg lcg{7};
+    std::vector<float> noise(static_cast<size_t>(30) * kSampleRate);
+    for (auto& sample : noise) {
+        sample = 0.02f * lcg.Next();
+    }
+    DspChain chain(kSampleRate);
+    chain.SetAnalysisMode(DspChain::AnalysisMode::kCorrelation);
+    bool everLocked = false;
+    RunChain(chain, noise, nullptr, nullptr, &everLocked);
+    EXPECT_TRUE(!everLocked);
+}
+
+TEST(DspChain, CorrelationMeasuresBeatErrorAtLowSnr) {
+    // 2 ms beat error, on-rate, phone-mic SNR.
+    const std::vector<float> signal = LowSnrWatchSignal(60, kBeatPeriodFrames, 96);
+    DspChain chain(kSampleRate);
+    chain.SetAnalysisMode(DspChain::AnalysisMode::kCorrelation);
+    const auto last = RunChain(chain, signal);
+    EXPECT_EQ(last.activeBph, kBph);
+    EXPECT_TRUE(last.rateValid);
+    EXPECT_NEAR(last.secPerDay, 0.0, 1.5);
+    EXPECT_NEAR(last.beatErrorMs, 2.0, 0.5);
+}
+
+TEST(DspChain, CorrelationDisambiguatesDoubledPeriods) {
+    // 36000 bph (100 ms) vs 18000 bph (200 ms) is the only 2x pair in the
+    // standard set; folding a fast watch at the doubled period shows two
+    // peaks and must not win.
+    {
+        const std::vector<float> signal =
+            LowSnrWatchSignal(30, 3600.0 / 36000 * kSampleRate);
+        DspChain chain(kSampleRate);
+        chain.SetAnalysisMode(DspChain::AnalysisMode::kCorrelation);
+        EXPECT_EQ(RunChain(chain, signal).activeBph, 36000);
+    }
+    {
+        const std::vector<float> signal =
+            LowSnrWatchSignal(30, 3600.0 / 18000 * kSampleRate);
+        DspChain chain(kSampleRate);
+        chain.SetAnalysisMode(DspChain::AnalysisMode::kCorrelation);
+        EXPECT_EQ(RunChain(chain, signal).activeBph, 18000);
+    }
 }
 
 TEST(DspChain, StaysSilentOnPureNoise) {

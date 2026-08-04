@@ -69,6 +69,13 @@ Java_com_deadaccurate_engine_NativeEngine_nativeSetBphOverride(JNIEnv* /*env*/,
     FromHandle(handle)->SetBphOverride(bph);
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_deadaccurate_engine_NativeEngine_nativeSetAnalysisMode(JNIEnv* /*env*/,
+                                                                jobject /*thiz*/,
+                                                                jlong handle, jint mode) {
+    FromHandle(handle)->SetAnalysisMode(mode);
+}
+
 extern "C" JNIEXPORT jint JNICALL
 Java_com_deadaccurate_engine_NativeEngine_nativeDrainEvents(JNIEnv* env, jobject /*thiz*/,
                                                             jlong handle,

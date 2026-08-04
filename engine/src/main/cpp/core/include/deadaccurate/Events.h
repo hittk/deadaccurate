@@ -22,6 +22,8 @@ enum class EventType : int {
                   // v[6]=tickCount, v[7]=beatErrorMs (negative = not
                   // measurable). detectedBph keeps reporting while an
                   // override is active so the UI can flag disagreement.
+    kPhase = 5,   // correlation-mode trace feed: v[1]=phaseDeviationMs
+                  // (wrapped to ±period/2), v[2]=periodMs
 };
 
 enum class EngineState : int {
@@ -56,6 +58,14 @@ inline Event MakeTickEvent(float deltaFrames, float peakDb, bool accepted) {
     e.v[1] = deltaFrames;
     e.v[2] = peakDb;
     e.v[3] = accepted ? 1.0f : 0.0f;
+    return e;
+}
+
+inline Event MakePhaseEvent(float phaseDeviationMs, float periodMs) {
+    Event e{};
+    e.v[0] = static_cast<float>(EventType::kPhase);
+    e.v[1] = phaseDeviationMs;
+    e.v[2] = periodMs;
     return e;
 }
 

@@ -39,6 +39,8 @@ public:
     void RecalibrateGate() { recalibrateRequested_.store(true); }
     // Positive pins the beat rate (FR-4 override); 0 = auto-detect.
     void SetBphOverride(int bph) { bphOverride_.store(bph); }
+    // 0 = edge (piezo), 1 = correlation (phone mic).
+    void SetAnalysisMode(int mode) { analysisMode_.store(mode); }
 
 private:
     static aaudio_data_callback_result_t DataCallback(AAudioStream* stream, void* userData,
@@ -63,6 +65,7 @@ private:
 
     std::atomic<float> gateTrimDb_{0.0f};
     std::atomic<int> bphOverride_{0};
+    std::atomic<int> analysisMode_{0};
     std::atomic<bool> recalibrateRequested_{false};
 
     int32_t sampleRate_ = 0;

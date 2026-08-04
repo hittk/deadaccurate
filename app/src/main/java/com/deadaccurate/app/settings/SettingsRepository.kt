@@ -25,6 +25,9 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
                 ?: InputPreference.AUTO,
             onboardingDismissed = prefs[KEY_ONBOARDING_DISMISSED] ?: false,
             clockCalSecPerDay = prefs[KEY_CLOCK_CAL] ?: 0f,
+            analysisMode = prefs[KEY_ANALYSIS_MODE]
+                ?.let { stored -> AnalysisMode.entries.find { it.name == stored } }
+                ?: AnalysisMode.EDGE,
         )
     }
 
@@ -50,11 +53,16 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[KEY_CLOCK_CAL] = secPerDay }
     }
 
+    suspend fun setAnalysisMode(mode: AnalysisMode) {
+        dataStore.edit { it[KEY_ANALYSIS_MODE] = mode.name }
+    }
+
     private companion object {
         val KEY_GATE_TRIM = floatPreferencesKey("gate_trim_db")
         val KEY_BPH_OVERRIDE = intPreferencesKey("bph_override")
         val KEY_INPUT_PREFERENCE = stringPreferencesKey("input_preference")
         val KEY_ONBOARDING_DISMISSED = booleanPreferencesKey("onboarding_dismissed")
         val KEY_CLOCK_CAL = floatPreferencesKey("clock_cal_sec_per_day")
+        val KEY_ANALYSIS_MODE = stringPreferencesKey("analysis_mode")
     }
 }
