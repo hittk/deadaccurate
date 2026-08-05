@@ -75,6 +75,25 @@ class WatchLogRepository(private val file: File) {
         return updated
     }
 
+    /**
+     * Renames a watch and/or corrects its movement label (a mislabeled
+     * movement would otherwise teach the recognizer wrong sounds forever).
+     * Blank name keeps the old one; blank movement clears the label.
+     */
+    suspend fun updateWatch(watchId: String, name: String, movementRef: String) {
+        _watches.value = _watches.value.map { watch ->
+            if (watch.id == watchId) {
+                watch.copy(
+                    name = name.trim().takeIf { it.isNotEmpty() } ?: watch.name,
+                    movementRef = movementRef.trim().takeIf { it.isNotEmpty() },
+                )
+            } else {
+                watch
+            }
+        }
+        persist()
+    }
+
     suspend fun deleteWatch(watchId: String) {
         _watches.value = _watches.value.filterNot { it.id == watchId }
         persist()

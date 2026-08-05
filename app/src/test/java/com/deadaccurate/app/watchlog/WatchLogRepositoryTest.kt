@@ -82,6 +82,22 @@ class WatchLogRepositoryTest {
     }
 
     @Test
+    fun updateCorrectsAMislabeledMovement() = runTest {
+        val file = File(tempFolder.root, "log.json")
+        val repository = WatchLogRepository(file)
+        repository.load()
+        // The real mistake this exists for: NH35 typed for an NH34 watch.
+        val watch = repository.saveMeasurement(null, "Blizzard", "NH35", measurement())
+        repository.updateWatch(watch.id, "Blizzard", "NH34")
+        assertEquals("NH34", repository.watches.value[0].movementRef)
+        // Survives reload; measurements untouched.
+        val reopened = WatchLogRepository(file)
+        reopened.load()
+        assertEquals("NH34", reopened.watches.value[0].movementRef)
+        assertEquals(1, reopened.watches.value[0].measurements.size)
+    }
+
+    @Test
     fun deleteRemovesTheWatch() = runTest {
         val repository = WatchLogRepository(File(tempFolder.root, "log.json"))
         repository.load()

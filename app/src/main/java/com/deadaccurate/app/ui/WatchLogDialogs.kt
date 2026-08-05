@@ -6,15 +6,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -31,13 +28,12 @@ import androidx.compose.ui.window.Dialog
 import com.deadaccurate.app.PendingResult
 import com.deadaccurate.app.TimegrapherUiState
 import com.deadaccurate.app.watchlog.WatchEntry
-import java.text.DateFormat
-import java.util.Date
 
 /**
  * The finish-measurement row under the readout, plus the dialogs it opens:
- * the save-result popup (auto-opened when the reading settles) and the
- * per-watch measurement history.
+ * the save-result popup (auto-opened when the user stops a test that has a
+ * valid reading) and the watch-log browser. A live "Sounds like…" line
+ * shows the movement guess while the test is still running.
  */
 @Composable
 internal fun ResultActions(state: TimegrapherUiState, watchLog: WatchLogActions) {
@@ -54,9 +50,17 @@ internal fun ResultActions(state: TimegrapherUiState, watchLog: WatchLogActions)
         }
         TextButton(onClick = { watchLog.onShowWatchLog(true) }) { Text("Watch log") }
     }
+    // Live recognition while the test runs; the popup itself waits for Stop.
+    state.movementGuess?.let { guess ->
+        Text(
+            "Sounds like a ${guess.movementRef}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
     if (state.measurementSettled && !state.showSaveDialog) {
         Text(
-            "Reading settled — save it to track this watch over time.",
+            "Reading settled — stop the test to save the result.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary,
         )
@@ -70,8 +74,9 @@ internal fun ResultActions(state: TimegrapherUiState, watchLog: WatchLogActions)
         )
     }
     if (state.showWatchLog) {
-        WatchLogDialog(
+        WatchLogBrowser(
             watches = state.watches,
+            onUpdateWatch = watchLog.onUpdateWatch,
             onDeleteWatch = watchLog.onDeleteWatch,
             onDismiss = { watchLog.onShowWatchLog(false) },
         )
@@ -198,77 +203,3 @@ internal fun WatchPickerChips(
     }
 }
 
-/** Per-watch measurement history: the numbers for each watch over time. */
-@Composable
-fun WatchLogDialog(
-    watches: List<WatchEntry>,
-    onDeleteWatch: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Watch log") },
-        text = {
-            if (watches.isEmpty()) {
-                Text(
-                    "No saved measurements yet. Finish a measurement and " +
-                        "save it to start tracking a watch over time.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            } else {
-                Column(
-                    modifier = Modifier
-                        .heightIn(max = 420.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    watches.forEach { watch ->
-                        WatchHistoryCard(watch, onDeleteWatch)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
-        },
-    )
-}
-
-@Composable
-private fun WatchHistoryCard(watch: WatchEntry, onDeleteWatch: (String) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column {
-                Text(watch.name, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    watch.movementRef?.let { "Movement: $it" } ?: "Movement not set",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            TextButton(onClick = { onDeleteWatch(watch.id) }) { Text("Delete") }
-        }
-        watch.measurements.take(MAX_HISTORY_ROWS).forEach { m ->
-            val date = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
-                .format(Date(m.timestampMs))
-            val beatError = m.beatErrorMs?.let { " • %.1f ms".format(it) } ?: ""
-            Text(
-                "$date  %+.1f s/d$beatError • ${m.bph} bph".format(m.secPerDay),
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        if (watch.measurements.size > MAX_HISTORY_ROWS) {
-            Text(
-                "…and ${watch.measurements.size - MAX_HISTORY_ROWS} more",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        HorizontalDivider()
-    }
-}
-
-private const val MAX_HISTORY_ROWS = 8

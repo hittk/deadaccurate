@@ -105,6 +105,8 @@ data class TimegrapherUiState(
     val recordUri: Uri? = null,
     /** The rate reading has been stable long enough to call it done. */
     val measurementSettled: Boolean = false,
+    /** Live movement recognition while measuring ("Sounds like a NH34"). */
+    val movementGuess: MovementGuesser.Guess? = null,
     /** Saved watches with their measurement history, newest first. */
     val watches: List<WatchEntry> = emptyList(),
     val showSaveDialog: Boolean = false,
@@ -160,7 +162,6 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
     // Settle detection: recent valid sec/day readings for the current rate.
     private val settleWindow = ArrayDeque<Float>()
     private var settleBph = 0
-    private var resultPromptShown = false
 
     init {
         viewModelScope.launch {
@@ -206,7 +207,17 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     fun toggleCapture() {
-        if (_uiState.value.capturing) stopCapture() else startCapture()
+        if (_uiState.value.capturing) {
+            // Freeze the result before the stream (and its state) goes away;
+            // the save popup belongs at the END of a test, not mid-test.
+            val result = buildPendingResult()
+            stopCapture()
+            if (result != null) {
+                _uiState.update { it.copy(showSaveDialog = true, pendingResult = result) }
+            }
+        } else {
+            startCapture()
+        }
     }
 
     fun dismissInputLost() {
@@ -344,7 +355,6 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         levelsSinceTick = 0
         settleWindow.clear()
         settleBph = 0
-        resultPromptShown = false
         lastSignature = emptyList()
         lastSignatureBph = 0
         _uiState.update {
@@ -359,6 +369,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 noTicksHint = false,
                 streamInfo = null,
                 measurementSettled = false,
+                movementGuess = null,
                 showSaveDialog = false,
                 pendingResult = null,
             )
@@ -409,6 +420,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         engine.stop()
         eventJob?.cancel()
         eventJob = null
+        settleWindow.clear()
         _uiState.update {
             it.copy(
                 capturing = false,
@@ -420,6 +432,8 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 rateValid = false,
                 noTicksHint = false,
                 streamInfo = null,
+                measurementSettled = false,
+                movementGuess = null,
             )
         }
     }
@@ -434,10 +448,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
 
             is EngineEvent.Rate -> onRate(event)
 
-            is EngineEvent.Signature -> {
-                lastSignature = event.bandScores
-                lastSignatureBph = event.bph
-            }
+            is EngineEvent.Signature -> onSignature(event)
 
             is EngineEvent.Status -> onStatus(event)
         }
@@ -510,12 +521,6 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 measurementSettled = settled,
             )
         }
-        // The reading just settled for the first time this session: this is
-        // "the measurement finished" — offer to save it, once.
-        if (settled && !resultPromptShown) {
-            resultPromptShown = true
-            openSaveDialog()
-        }
     }
 
     /** True when the recent valid readings have stopped drifting. */
@@ -527,7 +532,6 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         if (event.activeBph != settleBph) {
             settleBph = event.activeBph
             settleWindow.clear()
-            resultPromptShown = false
         }
         settleWindow.addLast(event.secPerDay)
         while (settleWindow.size > SETTLE_FRAMES) settleWindow.removeFirst()
@@ -626,27 +630,37 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    /** Freezes the current reading and opens the save dialog. */
-    fun openSaveDialog() {
+    /** ~2 Hz acoustic signature: feeds the live "Sounds like…" guess. */
+    private fun onSignature(event: EngineEvent.Signature) {
+        lastSignature = event.bandScores
+        lastSignatureBph = event.bph
+        val guess = MovementGuesser.guess(event.bph, event.bandScores, watchLog.watches.value)
+        if (guess != _uiState.value.movementGuess) {
+            _uiState.update { it.copy(movementGuess = guess) }
+        }
+    }
+
+    /** The current reading as a frozen result; null if nothing to save. */
+    private fun buildPendingResult(): PendingResult? {
         val state = _uiState.value
-        if (!state.rateValid || state.activeBph == 0) return
+        if (!state.rateValid || state.activeBph == 0) return null
         // The signature is only meaningful if the folding path agrees on
         // the rate being displayed (it always runs, in either mode).
         val scores = if (lastSignatureBph == state.activeBph) lastSignature else emptyList()
-        val guess = MovementGuesser.guess(state.activeBph, scores, watchLog.watches.value)
-        _uiState.update {
-            it.copy(
-                showSaveDialog = true,
-                pendingResult = PendingResult(
-                    bph = state.activeBph,
-                    secPerDay = state.correctedSecPerDay,
-                    beatErrorMs = state.beatErrorMs,
-                    mode = state.analysisMode,
-                    bandScores = scores,
-                    guess = guess,
-                ),
-            )
-        }
+        return PendingResult(
+            bph = state.activeBph,
+            secPerDay = state.correctedSecPerDay,
+            beatErrorMs = state.beatErrorMs,
+            mode = state.analysisMode,
+            bandScores = scores,
+            guess = MovementGuesser.guess(state.activeBph, scores, watchLog.watches.value),
+        )
+    }
+
+    /** Freezes the current reading and opens the save dialog. */
+    fun openSaveDialog() {
+        val result = buildPendingResult() ?: return
+        _uiState.update { it.copy(showSaveDialog = true, pendingResult = result) }
     }
 
     fun dismissSaveDialog() {
@@ -680,6 +694,11 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
 
     fun setShowWatchLog(show: Boolean) {
         _uiState.update { it.copy(showWatchLog = show) }
+    }
+
+    /** Renames a watch or corrects its movement label. */
+    fun updateWatch(watchId: String, name: String, movementRef: String) {
+        viewModelScope.launch { watchLog.updateWatch(watchId, name, movementRef) }
     }
 
     fun deleteWatch(watchId: String) {

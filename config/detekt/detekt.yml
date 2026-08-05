@@ -10,6 +10,9 @@ complexity:
   LongParameterList:
     # CaptureActions groups every screen intent into one data class.
     constructorThreshold: 16
+    # Composables pass state down and events up; parameter lists grow by
+    # design and slot-object indirection would only obscure them.
+    ignoreAnnotated: ['Composable']
 
 style:
   MagicNumber:

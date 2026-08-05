@@ -50,6 +50,7 @@ class TimegrapherScreenTest {
             onDismissSaveDialog = {},
             onSaveResult = { _, _, _ -> },
             onShowWatchLog = {},
+            onUpdateWatch = { _, _, _ -> },
             onDeleteWatch = {},
         ),
     )
@@ -198,6 +199,43 @@ class TimegrapherScreenTest {
     }
 
     @Test
+    fun correlationLockShowsFirstReadingCountdown() {
+        // Locked at 21600 (6 beats/s) with 65 of 125 beats integrated:
+        // 60 beats left = 10 s, plus ~12 s of regression window.
+        setCapture(
+            TimegrapherUiState(
+                hasPermission = true,
+                capturing = true,
+                analysisMode = com.deadaccurate.app.settings.AnalysisMode.CORRELATION,
+                activeBph = 21600,
+                detectedBph = 21600,
+                rateLocked = true,
+                rateValid = false,
+                rateTickCount = 65,
+            ),
+        )
+        compose
+            .onNodeWithText("locked 21600 bph • 65 ticks • first reading in ~22s")
+            .assertExists()
+    }
+
+    @Test
+    fun liveMovementGuessIsShownDuringTheTest() {
+        setCapture(
+            TimegrapherUiState(
+                hasPermission = true,
+                capturing = true,
+                movementGuess = com.deadaccurate.app.watchlog.MovementGuesser.Guess(
+                    movementRef = "NH34",
+                    watchName = "Blizzard",
+                    confidence = 0.95f,
+                ),
+            ),
+        )
+        compose.onNodeWithText("Sounds like a NH34").assertExists()
+    }
+
+    @Test
     fun settledMeasurementOffersToSave() {
         setCapture(
             TimegrapherUiState(
@@ -211,7 +249,7 @@ class TimegrapherScreenTest {
         )
         compose.onNodeWithText("Save result ✓").assertExists()
         compose
-            .onNodeWithText("Reading settled — save it to track this watch over time.")
+            .onNodeWithText("Reading settled — stop the test to save the result.")
             .assertExists()
     }
 
@@ -294,7 +332,11 @@ class TimegrapherScreenTest {
             ),
         )
         compose.onNodeWithText("SKX007").assertExists()
-        compose.onNodeWithText("Movement: NH35").assertExists()
+        compose.onNodeWithText("Movement: NH35 • 1 readings").assertExists()
+        // The flat all-readings view lists the same measurement with its
+        // watch and movement info on the row.
+        compose.onNodeWithText("All readings").performClick()
+        compose.onNodeWithText("-2.3 s/d • 0.2 ms beat error • 21600 bph").assertExists()
     }
 
     @Test

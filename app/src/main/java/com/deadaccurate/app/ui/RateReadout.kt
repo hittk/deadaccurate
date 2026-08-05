@@ -6,6 +6,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.deadaccurate.app.TimegrapherUiState
+import com.deadaccurate.app.settings.AnalysisMode
 
 /**
  * The headline number (FR-5): rate deviation in s/day, greyed until the
@@ -50,7 +51,8 @@ private fun statusLine(state: TimegrapherUiState): String {
         state.bphOverride != null ->
             "pinned ${state.bphOverride} bph • ${state.rateTickCount} ticks"
         state.activeBph > 0 ->
-            "locked ${state.activeBph} bph • ${state.rateTickCount} ticks"
+            "locked ${state.activeBph} bph • ${state.rateTickCount} ticks" +
+                settlingEta(state)
         else -> "searching for beat rate…"
     }
     return if (state.clockCalSecPerDay != 0f) {
@@ -59,6 +61,31 @@ private fun statusLine(state: TimegrapherUiState): String {
         base
     }
 }
+
+/**
+ * The wait for the first s/day reading is long by design (the correlation
+ * path integrates over beats); an honest countdown beats a number that
+ * "takes forever to appear". Mirrors the engine's thresholds: phase points
+ * start after [MIN_PHASE_BEATS] (FoldingAnalyzer::kMinBeatsForPhase), then
+ * the regression needs ~[RATE_WINDOW_SECONDS] more of span.
+ */
+private fun settlingEta(state: TimegrapherUiState): String {
+    val waiting = !state.rateValid && state.activeBph > 0 &&
+        state.analysisMode == AnalysisMode.CORRELATION
+    if (!waiting) return ""
+    val beatsPerSecond = state.activeBph / SECONDS_PER_HOUR
+    val beatsLeft = (MIN_PHASE_BEATS - state.rateTickCount).coerceAtLeast(0)
+    val secondsLeft = (beatsLeft / beatsPerSecond + RATE_WINDOW_SECONDS).toInt()
+    return " • first reading in ~${secondsLeft}s"
+}
+
+private const val SECONDS_PER_HOUR = 3600f
+
+/** Mirrors FoldingAnalyzer::kMinBeatsForPhase. */
+private const val MIN_PHASE_BEATS = 125
+
+/** Regression span + points after phase tracking starts, roughly. */
+private const val RATE_WINDOW_SECONDS = 12f
 
 private fun formatSecPerDay(secPerDay: Float): String {
     val sign = if (secPerDay >= 0) "+" else "−"

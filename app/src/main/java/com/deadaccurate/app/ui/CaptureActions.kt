@@ -33,6 +33,8 @@ data class WatchLogActions(
     /** (watchId, newWatchName, movementRef) — id null creates a new watch. */
     val onSaveResult: (String?, String?, String?) -> Unit,
     val onShowWatchLog: (Boolean) -> Unit,
+    /** (watchId, name, movementRef) — fixes a mistyped movement label. */
+    val onUpdateWatch: (String, String, String) -> Unit,
     val onDeleteWatch: (String) -> Unit,
 )
 
@@ -57,6 +59,7 @@ fun captureActions(viewModel: TimegrapherViewModel) = CaptureActions(
         onDismissSaveDialog = viewModel::dismissSaveDialog,
         onSaveResult = viewModel::saveResult,
         onShowWatchLog = viewModel::setShowWatchLog,
+        onUpdateWatch = viewModel::updateWatch,
         onDeleteWatch = viewModel::deleteWatch,
     ),
 )
