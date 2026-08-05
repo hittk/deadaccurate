@@ -38,6 +38,14 @@ sealed interface EngineEvent {
     data class Phase(val phaseDeviationMs: Float, val periodMs: Float) : EngineEvent
 
     /**
+     * Acoustic signature (~2 Hz once the folding path holds a rate): fold
+     * score of [bph] in each analysis band. Different calibres put their
+     * tick energy in different bands — the raw material for recognizing a
+     * specific movement. Emitted in both analysis modes.
+     */
+    data class Signature(val bph: Int, val bandScores: List<Float>) : EngineEvent
+
+    /**
      * Beat-rate identification and rate-deviation snapshot (~2 Hz plus on
      * every change). [activeBph] 0 means still searching with no override;
      * [detectedBph] is the detector's lock (0 = searching) and keeps
@@ -103,6 +111,10 @@ object EventDecoder {
     private const val TYPE_TICK = 3
     private const val TYPE_RATE = 4
     private const val TYPE_PHASE = 5
+    private const val TYPE_SIGNATURE = 6
+
+    /** Analysis bands carried in a signature event. */
+    const val SIGNATURE_BANDS = 4
 
     /** Decodes [count] records from [buffer] as filled by nativeDrainEvents. */
     fun decode(buffer: FloatArray, count: Int): List<EngineEvent> {
@@ -151,6 +163,12 @@ object EventDecoder {
                     EngineEvent.Phase(
                         phaseDeviationMs = buffer[base + 1],
                         periodMs = buffer[base + 2],
+                    ),
+                )
+                TYPE_SIGNATURE -> events.add(
+                    EngineEvent.Signature(
+                        bph = buffer[base + 1].toInt(),
+                        bandScores = List(SIGNATURE_BANDS) { buffer[base + 2 + it] },
                     ),
                 )
                 // Unknown types are skipped: a newer native lib may emit

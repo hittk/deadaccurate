@@ -24,6 +24,9 @@ enum class EventType : int {
                   // override is active so the UI can flag disagreement.
     kPhase = 5,   // correlation-mode trace feed: v[1]=phaseDeviationMs
                   // (wrapped to ±period/2), v[2]=periodMs
+    kSignature = 6,  // acoustic signature: v[1]=bph, v[2..5]=fold score of
+                     // that rate in each analysis band (movement
+                     // recognition raw material)
 };
 
 enum class EngineState : int {
@@ -66,6 +69,16 @@ inline Event MakePhaseEvent(float phaseDeviationMs, float periodMs) {
     e.v[0] = static_cast<float>(EventType::kPhase);
     e.v[1] = phaseDeviationMs;
     e.v[2] = periodMs;
+    return e;
+}
+
+inline Event MakeSignatureEvent(int bph, const float* bandScores, size_t count) {
+    Event e{};
+    e.v[0] = static_cast<float>(EventType::kSignature);
+    e.v[1] = static_cast<float>(bph);
+    for (size_t c = 0; c < count && c + 2 < kEventFloats; ++c) {
+        e.v[c + 2] = bandScores[c];
+    }
     return e;
 }
 

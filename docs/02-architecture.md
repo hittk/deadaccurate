@@ -77,6 +77,11 @@ the outbound event queue as three event types:
 - `EngineStatus { state, detectedBph, confidence, rateSecPerDay, streamInfo }`
   — coalesced snapshot, ~5 Hz, plus on every state change (disconnect,
   unprocessed-preset fallback, etc.).
+- `SignatureFrame { bph, bandScores[4] }` — ~2 Hz while the folding path
+  holds a rate (in either analysis mode): the fold score of that rate in
+  each correlation band. This is the acoustic fingerprint the app's
+  movement recognition learns from — different calibres put their tick
+  energy in different bands.
 
 All timing is expressed in **sample frames**, converted to microseconds using
 the stream's sample rate. The audio clock is the sole timebase — wall-clock

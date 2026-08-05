@@ -31,6 +31,17 @@ after which the build fails if any DSP change ever breaks that watch.
 | `seiko_nh34_21600.wav` | Seiko NH34 GMT | locks 21,600 in ~17 s, rate ≈ −1.4 s/d (edge mode agrees: −3.3), beat error ≈ 0.1 ms | ✅ confirmed. Also locks in edge mode — the loudest, cleanest recording of the batch. Two placement knocks (t≈3.7 s, 300× ambient at t≈7.3 s) each re-floor the usable history, hence the later lock. |
 | `seagull_st2533_21600.wav` | Seagull ST2533 | locks 21,600 in ~4 s (band 3, 16–21.5 kHz — nearly ultrasonic tick energy), rate ≈ **+200 s/d**, beat error noisy ≈ 0.7–2 ms | ✅ rate identified, ⚠️ the watch itself is running ~200 s/day fast — coherent across bands and confirmed by offline analysis, not a measurement artifact. Typical of a magnetized hairspring or a movement overdue for service. This watch motivated both the 4th analysis band and the rate-offset-tolerant scoring. |
 
+## In-app watch log and movement recognition
+
+Since 0.3.6 the app closes this loop itself: when a measurement settles
+(16 consecutive valid readings spanning ≤ 0.8 s/day), a popup shows the
+rate and beat error and offers to save them against a named watch. Each
+save stores the acoustic signature (per-band fold scores) alongside the
+numbers; labeling the watch's movement teaches the recognizer, and later
+measurements of a same-rate watch are matched by cosine similarity of
+their signatures ("Sounds like a NH35"). The log lives on-device in
+`watch_log.json` and tracks each watch's numbers over time.
+
 ## Intake procedure
 
 1. Record 60 s in-app (watch caseback on the mic, quiet room, phone on a

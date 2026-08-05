@@ -21,6 +21,11 @@ import com.deadaccurate.app.settings.SettingsRepository
 import com.deadaccurate.app.settings.settingsDataStore
 import com.deadaccurate.app.trace.TraceComputer
 import com.deadaccurate.app.trace.TracePoint
+import com.deadaccurate.app.watchlog.Measurement
+import com.deadaccurate.app.watchlog.MovementGuesser
+import com.deadaccurate.app.watchlog.WatchEntry
+import com.deadaccurate.app.watchlog.WatchLogRepository
+import java.io.File
 import com.deadaccurate.engine.AudioEngine
 import com.deadaccurate.engine.EngineEvent
 import com.deadaccurate.engine.EngineState
@@ -38,6 +43,21 @@ data class StreamInfo(
     val sampleRate: Int,
     val unprocessed: Boolean,
     val exclusiveMode: Boolean,
+)
+
+/**
+ * A finished measurement, frozen the moment the save dialog opens so the
+ * numbers can't wiggle under the user while they type a watch name.
+ */
+data class PendingResult(
+    val bph: Int,
+    /** Corrected (includes the clock calibration) — the number that matters. */
+    val secPerDay: Float,
+    val beatErrorMs: Float?,
+    val mode: AnalysisMode,
+    /** Acoustic signature captured with the result; teaches the guesser. */
+    val bandScores: List<Float>,
+    val guess: MovementGuesser.Guess?,
 )
 
 data class TimegrapherUiState(
@@ -83,6 +103,13 @@ data class TimegrapherUiState(
     val recordingSecondsLeft: Int? = null,
     /** Set when a diagnostic WAV is ready to share. */
     val recordUri: Uri? = null,
+    /** The rate reading has been stable long enough to call it done. */
+    val measurementSettled: Boolean = false,
+    /** Saved watches with their measurement history, newest first. */
+    val watches: List<WatchEntry> = emptyList(),
+    val showSaveDialog: Boolean = false,
+    val pendingResult: PendingResult? = null,
+    val showWatchLog: Boolean = false,
 ) {
     /** What the readout shows: measurement plus the clock correction. */
     val correctedSecPerDay: Float get() = secPerDay + clockCalSecPerDay
@@ -106,6 +133,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
     private val engine = AudioEngine()
     private val settingsRepository = SettingsRepository(application.settingsDataStore)
     private val replayAnalyzer = ReplayAnalyzer(application.contentResolver)
+    private val watchLog = WatchLogRepository(File(application.filesDir, "watch_log.json"))
 
     private val unprocessedSupported: Boolean =
         audioManager.getProperty(
@@ -124,6 +152,16 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
     private val sessionTicks = ArrayDeque<SessionTick>()
     private var levelsSinceTick = 0
 
+    // Latest acoustic signature from the engine (kept out of UiState — it
+    // updates ~2 Hz and nothing recomposes on it).
+    private var lastSignature: List<Float> = emptyList()
+    private var lastSignatureBph = 0
+
+    // Settle detection: recent valid sec/day readings for the current rate.
+    private val settleWindow = ArrayDeque<Float>()
+    private var settleBph = 0
+    private var resultPromptShown = false
+
     init {
         viewModelScope.launch {
             inputMonitor.wiredInput.collect { device ->
@@ -133,6 +171,12 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
             }
         }
         viewModelScope.launch { loadSettings() }
+        viewModelScope.launch {
+            watchLog.load()
+            watchLog.watches.collect { entries ->
+                _uiState.update { it.copy(watches = entries) }
+            }
+        }
     }
 
     private suspend fun loadSettings() {
@@ -298,6 +342,11 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         traceBuffer.clear()
         sessionTicks.clear()
         levelsSinceTick = 0
+        settleWindow.clear()
+        settleBph = 0
+        resultPromptShown = false
+        lastSignature = emptyList()
+        lastSignatureBph = 0
         _uiState.update {
             it.copy(
                 tracePoints = emptyList(),
@@ -309,6 +358,9 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 rateTickCount = 0,
                 noTicksHint = false,
                 streamInfo = null,
+                measurementSettled = false,
+                showSaveDialog = false,
+                pendingResult = null,
             )
         }
     }
@@ -382,6 +434,11 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
 
             is EngineEvent.Rate -> onRate(event)
 
+            is EngineEvent.Signature -> {
+                lastSignature = event.bandScores
+                lastSignatureBph = event.bph
+            }
+
             is EngineEvent.Status -> onStatus(event)
         }
     }
@@ -440,6 +497,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         if (event.activeBph > 0 && event.activeBph != traceBph) {
             resetTrace(event.activeBph)
         }
+        val settled = updateSettle(event)
         _uiState.update {
             it.copy(
                 activeBph = event.activeBph,
@@ -449,8 +507,32 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 secPerDay = event.secPerDay,
                 beatErrorMs = event.beatErrorMs,
                 rateTickCount = event.tickCount,
+                measurementSettled = settled,
             )
         }
+        // The reading just settled for the first time this session: this is
+        // "the measurement finished" — offer to save it, once.
+        if (settled && !resultPromptShown) {
+            resultPromptShown = true
+            openSaveDialog()
+        }
+    }
+
+    /** True when the recent valid readings have stopped drifting. */
+    private fun updateSettle(event: EngineEvent.Rate): Boolean {
+        if (!event.rateValid || event.activeBph == 0) {
+            settleWindow.clear()
+            return false
+        }
+        if (event.activeBph != settleBph) {
+            settleBph = event.activeBph
+            settleWindow.clear()
+            resultPromptShown = false
+        }
+        settleWindow.addLast(event.secPerDay)
+        while (settleWindow.size > SETTLE_FRAMES) settleWindow.removeFirst()
+        return settleWindow.size >= SETTLE_FRAMES &&
+            (settleWindow.max() - settleWindow.min()) <= SETTLE_RANGE_SEC_PER_DAY
     }
 
     /** Correlation-mode trace: the folded peak's drift, one dot per ~0.5 s. */
@@ -544,6 +626,66 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    /** Freezes the current reading and opens the save dialog. */
+    fun openSaveDialog() {
+        val state = _uiState.value
+        if (!state.rateValid || state.activeBph == 0) return
+        // The signature is only meaningful if the folding path agrees on
+        // the rate being displayed (it always runs, in either mode).
+        val scores = if (lastSignatureBph == state.activeBph) lastSignature else emptyList()
+        val guess = MovementGuesser.guess(state.activeBph, scores, watchLog.watches.value)
+        _uiState.update {
+            it.copy(
+                showSaveDialog = true,
+                pendingResult = PendingResult(
+                    bph = state.activeBph,
+                    secPerDay = state.correctedSecPerDay,
+                    beatErrorMs = state.beatErrorMs,
+                    mode = state.analysisMode,
+                    bandScores = scores,
+                    guess = guess,
+                ),
+            )
+        }
+    }
+
+    fun dismissSaveDialog() {
+        _uiState.update { it.copy(showSaveDialog = false, pendingResult = null) }
+    }
+
+    /**
+     * Saves the frozen result to [watchId] (or a new watch named
+     * [newWatchName]); a non-blank [movementRef] labels the calibre and
+     * teaches the movement recognizer.
+     */
+    fun saveResult(watchId: String?, newWatchName: String?, movementRef: String?) {
+        val pending = _uiState.value.pendingResult ?: return
+        viewModelScope.launch {
+            watchLog.saveMeasurement(
+                watchId = watchId,
+                newWatchName = newWatchName,
+                movementRef = movementRef,
+                measurement = Measurement(
+                    timestampMs = System.currentTimeMillis(),
+                    bph = pending.bph,
+                    secPerDay = pending.secPerDay,
+                    beatErrorMs = pending.beatErrorMs,
+                    mode = pending.mode.name,
+                    bandScores = pending.bandScores,
+                ),
+            )
+            _uiState.update { it.copy(showSaveDialog = false, pendingResult = null) }
+        }
+    }
+
+    fun setShowWatchLog(show: Boolean) {
+        _uiState.update { it.copy(showWatchLog = show) }
+    }
+
+    fun deleteWatch(watchId: String) {
+        viewModelScope.launch { watchLog.deleteWatch(watchId) }
+    }
+
     private fun resetTrace(bph: Int) {
         traceBph = bph
         val rate = _uiState.value.streamInfo?.sampleRate
@@ -578,5 +720,12 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         // Long enough for the correlation path to lock, settle, and produce
         // a valid rate offline — 30 s clips end before the rate window fills.
         const val RECORD_SECONDS = 60
+
+        // "Measurement finished": this many consecutive valid rate frames
+        // (~2 Hz) spanning no more than this much s/day. The user watches
+        // the number climb while the regression window fills; when it stops
+        // moving, the result is offered for saving.
+        const val SETTLE_FRAMES = 16
+        const val SETTLE_RANGE_SEC_PER_DAY = 0.8f
     }
 }

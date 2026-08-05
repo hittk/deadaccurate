@@ -12,8 +12,8 @@ android {
         applicationId = "com.deadaccurate.app"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 9
-        versionName = "0.3.5"
+        versionCode = 10
+        versionName = "0.3.6"
     }
 
     // One committed keystore signs every build type in every environment
@@ -61,6 +61,11 @@ android {
         unitTests {
             // Robolectric-based Compose UI tests need resources.
             isIncludeAndroidResources = true
+            all {
+                // Robolectric + Compose + the DSP fixture generators share
+                // one test JVM; the default heap OOMs.
+                it.maxHeapSize = "2g"
+            }
         }
     }
 }

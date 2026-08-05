@@ -94,6 +94,10 @@ Java_com_deadaccurate_engine_ReplayEngine_nativeProcess(JNIEnv* env, jobject /*t
         events.push_back(
             deadaccurate::MakePhaseEvent(phase.phaseDeviationMs, phase.periodMs));
     }
+    for (const auto& sig : session->output.signatures) {
+        events.push_back(deadaccurate::MakeSignatureEvent(
+            sig.bph, sig.bandScores, deadaccurate::FoldingAnalyzer::kChannels));
+    }
 
     const size_t capacity =
         static_cast<size_t>(env->GetArrayLength(outEvents)) / deadaccurate::kEventFloats;

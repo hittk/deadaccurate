@@ -286,6 +286,35 @@ TEST(DspChain, CorrelationLocksAndMeasuresWhereEdgeCannot) {
     EXPECT_TRUE(phaseFrames > 10);  // the trace has something to draw
 }
 
+TEST(DspChain, SignatureFramesReportTheDominantBand) {
+    // The synthetic tick carrier is 5 kHz — band 1 (3-8 kHz) of the
+    // signature must dominate, and frames must flow in BOTH modes (the
+    // folding path always runs). Movement recognition consumes these.
+    const std::vector<float> signal = LowSnrWatchSignal(30, 5999.0);
+    for (const auto mode : {DspChain::AnalysisMode::kCorrelation,
+                            DspChain::AnalysisMode::kEdge}) {
+        DspChain chain(kSampleRate);
+        chain.SetAnalysisMode(mode);
+        DspChain::Output output;
+        DspChain::SignatureFrame last{};
+        size_t frames = 0;
+        constexpr size_t kChunk = 1024;
+        for (size_t offset = 0; offset < signal.size(); offset += kChunk) {
+            const size_t n = std::min(kChunk, signal.size() - offset);
+            chain.Process(signal.data() + offset, n, output);
+            for (const auto& sig : output.signatures) {
+                last = sig;
+                ++frames;
+            }
+        }
+        EXPECT_TRUE(frames > 10);
+        EXPECT_EQ(last.bph, kBph);
+        for (int c = 0; c < deadaccurate::FoldingAnalyzer::kChannels; ++c) {
+            EXPECT_TRUE(last.bandScores[1] >= last.bandScores[c]);
+        }
+    }
+}
+
 TEST(DspChain, CorrelationStaysUnlockedOnPureNoise) {
     Lcg lcg{7};
     std::vector<float> noise(static_cast<size_t>(30) * kSampleRate);

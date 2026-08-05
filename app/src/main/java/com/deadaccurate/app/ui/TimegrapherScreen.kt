@@ -56,22 +56,7 @@ fun TimegrapherScreen(viewModel: TimegrapherViewModel = viewModel()) {
         viewModel.onPermissionResult(granted)
     }
 
-    val actions = CaptureActions(
-        onToggleCapture = viewModel::toggleCapture,
-        onDismissInputLost = viewModel::dismissInputLost,
-        onSetBphOverride = viewModel::setBphOverride,
-        onSetGateTrim = viewModel::setGateTrimDb,
-        onRecalibrate = viewModel::recalibrateGate,
-        onSetInputPreference = viewModel::setInputPreference,
-        onSetAnalysisMode = viewModel::setAnalysisMode,
-        onDismissOnboarding = viewModel::dismissOnboarding,
-        onReplayFile = viewModel::replayFile,
-        onRunDemo = viewModel::runDemo,
-        onExportSession = viewModel::exportSession,
-        onExportHandled = viewModel::onExportHandled,
-        onRecordDiagnostic = viewModel::recordDiagnostic,
-        onAdjustClockCal = viewModel::adjustClockCal,
-    )
+    val actions = captureActions(viewModel)
 
     // An export or recording becoming ready launches the share sheet once.
     val shareUri = state.exportUri ?: state.recordUri
@@ -146,6 +131,7 @@ internal fun CaptureContent(
         Notices(state, actions.onDismissInputLost)
 
         RateReadout(state)
+        ResultActions(state, actions.watchLog)
         BeatTrace(points = state.tracePoints, halfRangeMs = state.traceHalfRangeMs)
         RateSelector(
             overrideBph = state.bphOverride,

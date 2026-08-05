@@ -72,6 +72,7 @@ void DspChain::Process(const float* samples, size_t count, Output& out) {
     out.ticks.clear();
     out.rates.clear();
     out.phases.clear();
+    out.signatures.clear();
 
     for (size_t i = 0; i < count; ++i) {
         const float filtered = bandPass_.Process(samples[i]);
@@ -95,21 +96,29 @@ void DspChain::Process(const float* samples, size_t count, Output& out) {
             corrEnv[c] = std::fabs(corrBands_[static_cast<size_t>(c)].Process(samples[i]));
         }
         FoldingAnalyzer::Snapshot snapshot;
-        if (folding_.Push(corrEnv, &snapshot) &&
-            mode_ == AnalysisMode::kCorrelation) {
-            out.rates.push_back({
-                snapshot.activeBph,
-                snapshot.detectedBph,
-                snapshot.overridden,
-                snapshot.rateValid,
-                snapshot.secPerDay,
-                snapshot.beatCount,
-                snapshot.beatErrorMs,
-            });
-            if (snapshot.phaseValid) {
-                out.phases.push_back({snapshot.phaseDeviationMs, snapshot.periodMs});
+        if (folding_.Push(corrEnv, &snapshot)) {
+            if (snapshot.activeBph > 0) {
+                SignatureFrame sig{snapshot.activeBph, {}};
+                for (int c = 0; c < FoldingAnalyzer::kChannels; ++c) {
+                    sig.bandScores[c] = snapshot.bandScores[static_cast<size_t>(c)];
+                }
+                out.signatures.push_back(sig);
             }
-            rateDirty_ = false;
+            if (mode_ == AnalysisMode::kCorrelation) {
+                out.rates.push_back({
+                    snapshot.activeBph,
+                    snapshot.detectedBph,
+                    snapshot.overridden,
+                    snapshot.rateValid,
+                    snapshot.secPerDay,
+                    snapshot.beatCount,
+                    snapshot.beatErrorMs,
+                });
+                if (snapshot.phaseValid) {
+                    out.phases.push_back({snapshot.phaseDeviationMs, snapshot.periodMs});
+                }
+                rateDirty_ = false;
+            }
         }
 
         // The meter reads the envelope so its bar and the gate threshold

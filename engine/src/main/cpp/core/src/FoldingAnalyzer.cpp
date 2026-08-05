@@ -357,6 +357,10 @@ void FoldingAnalyzer::TakeSnapshot() {
     }
     snapshot_.beatCount =
         static_cast<int>(static_cast<double>(profileBins_) * binDurationMs_ / activePeriodMs_);
+    for (int c = 0; c < kChannels; ++c) {
+        snapshot_.bandScores[static_cast<size_t>(c)] =
+            static_cast<float>(ScoreChannel(c, activePeriodMs_));
+    }
     EstimatePhaseAndRate();
     EstimateBeatError();
 }

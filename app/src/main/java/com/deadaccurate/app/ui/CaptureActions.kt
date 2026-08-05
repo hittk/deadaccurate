@@ -1,6 +1,7 @@
 package com.deadaccurate.app.ui
 
 import android.net.Uri
+import com.deadaccurate.app.TimegrapherViewModel
 import com.deadaccurate.app.settings.AnalysisMode
 import com.deadaccurate.app.settings.InputPreference
 
@@ -22,4 +23,40 @@ data class CaptureActions(
     val onRecordDiagnostic: () -> Unit,
     /** Delta in s/day; 0 resets the calibration. */
     val onAdjustClockCal: (Float) -> Unit,
+    val watchLog: WatchLogActions,
+)
+
+/** Intents for finishing a measurement and the per-watch history log. */
+data class WatchLogActions(
+    val onOpenSaveDialog: () -> Unit,
+    val onDismissSaveDialog: () -> Unit,
+    /** (watchId, newWatchName, movementRef) — id null creates a new watch. */
+    val onSaveResult: (String?, String?, String?) -> Unit,
+    val onShowWatchLog: (Boolean) -> Unit,
+    val onDeleteWatch: (String) -> Unit,
+)
+
+/** Binds every screen intent to its [viewModel] handler. */
+fun captureActions(viewModel: TimegrapherViewModel) = CaptureActions(
+    onToggleCapture = viewModel::toggleCapture,
+    onDismissInputLost = viewModel::dismissInputLost,
+    onSetBphOverride = viewModel::setBphOverride,
+    onSetGateTrim = viewModel::setGateTrimDb,
+    onRecalibrate = viewModel::recalibrateGate,
+    onSetInputPreference = viewModel::setInputPreference,
+    onSetAnalysisMode = viewModel::setAnalysisMode,
+    onDismissOnboarding = viewModel::dismissOnboarding,
+    onReplayFile = viewModel::replayFile,
+    onRunDemo = viewModel::runDemo,
+    onExportSession = viewModel::exportSession,
+    onExportHandled = viewModel::onExportHandled,
+    onRecordDiagnostic = viewModel::recordDiagnostic,
+    onAdjustClockCal = viewModel::adjustClockCal,
+    watchLog = WatchLogActions(
+        onOpenSaveDialog = viewModel::openSaveDialog,
+        onDismissSaveDialog = viewModel::dismissSaveDialog,
+        onSaveResult = viewModel::saveResult,
+        onShowWatchLog = viewModel::setShowWatchLog,
+        onDeleteWatch = viewModel::deleteWatch,
+    ),
 )

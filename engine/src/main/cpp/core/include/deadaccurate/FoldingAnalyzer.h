@@ -34,6 +34,11 @@ public:
         bool phaseValid = false;
         float phaseDeviationMs = 0.0f;  // wrapped to ±period/2, for the trace
         float periodMs = 0.0f;
+        // Fold score of the active rate in each band — the acoustic
+        // signature used to recognize a specific movement (different
+        // calibres put their tick energy in different bands). All zero
+        // while searching.
+        std::array<float, kChannels> bandScores{};
     };
 
     explicit FoldingAnalyzer(int sampleRate);

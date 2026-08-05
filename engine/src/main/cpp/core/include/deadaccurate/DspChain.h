@@ -59,11 +59,22 @@ public:
         float periodMs;
     };
 
+    // Acoustic signature (~2 Hz once the folding path holds a rate): fold
+    // score of that rate in each analysis band. Different calibres put
+    // their tick energy in different bands, so this is the raw material
+    // for movement recognition. Emitted in both modes — the folding path
+    // always runs.
+    struct SignatureFrame {
+        int bph;
+        float bandScores[FoldingAnalyzer::kChannels];
+    };
+
     struct Output {
         std::vector<LevelFrame> levels;
         std::vector<TickEvent> ticks;
         std::vector<RateFrame> rates;
         std::vector<PhaseFrame> phases;
+        std::vector<SignatureFrame> signatures;
     };
 
     explicit DspChain(int sampleRate);

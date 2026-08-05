@@ -45,6 +45,13 @@ class TimegrapherScreenTest {
         onExportHandled = {},
         onRecordDiagnostic = {},
         onAdjustClockCal = {},
+        watchLog = WatchLogActions(
+            onOpenSaveDialog = {},
+            onDismissSaveDialog = {},
+            onSaveResult = { _, _, _ -> },
+            onShowWatchLog = {},
+            onDeleteWatch = {},
+        ),
     )
 
     private fun setCapture(state: TimegrapherUiState, actions: CaptureActions = actions()) {
@@ -188,6 +195,106 @@ class TimegrapherScreenTest {
         }
         compose.onNodeWithText("Allow microphone access").performClick()
         assertTrue(requested)
+    }
+
+    @Test
+    fun settledMeasurementOffersToSave() {
+        setCapture(
+            TimegrapherUiState(
+                hasPermission = true,
+                capturing = true,
+                rateValid = true,
+                secPerDay = 3.1f,
+                activeBph = 21600,
+                measurementSettled = true,
+            ),
+        )
+        compose.onNodeWithText("Save result ✓").assertExists()
+        compose
+            .onNodeWithText("Reading settled — save it to track this watch over time.")
+            .assertExists()
+    }
+
+    // The full SaveResultDialog is not composed under Robolectric — its
+    // text fields never let the Robolectric idling strategy go idle (a
+    // test-environment artifact, not an app bug). Its pieces are covered
+    // instead: the summary content here and the picker chips below.
+    @Test
+    fun resultSummaryShowsNumbersAndGuess() {
+        compose.setContent {
+            MaterialTheme {
+                androidx.compose.foundation.layout.Column {
+                    ResultSummary(
+                        com.deadaccurate.app.PendingResult(
+                            bph = 21600,
+                            secPerDay = 202.4f,
+                            beatErrorMs = 0.7f,
+                            mode = com.deadaccurate.app.settings.AnalysisMode.CORRELATION,
+                            bandScores = listOf(1f, 2f, 3f, 8f),
+                            guess = com.deadaccurate.app.watchlog.MovementGuesser.Guess(
+                                movementRef = "ST2533",
+                                watchName = "Seagull",
+                                confidence = 0.97f,
+                            ),
+                        ),
+                    )
+                }
+            }
+        }
+        compose.onNodeWithText("+202.4 s/day").assertExists()
+        compose.onNodeWithText("21600 bph • beat error 0.7 ms").assertExists()
+        compose.onNodeWithText("Sounds like a ST2533 (heard on “Seagull”)").assertExists()
+    }
+
+    @Test
+    fun watchPickerSelectsAnExistingWatch() {
+        var selected: String? = "unset"
+        val watch = com.deadaccurate.app.watchlog.WatchEntry(
+            id = "w1",
+            name = "Seagull",
+            movementRef = "ST2533",
+            measurements = emptyList(),
+        )
+        compose.setContent {
+            MaterialTheme {
+                WatchPickerChips(
+                    watches = listOf(watch),
+                    selectedId = null,
+                    onSelect = { selected = it },
+                )
+            }
+        }
+        compose.onNodeWithText("Seagull").performClick()
+        assertTrue(selected == "w1")
+    }
+
+    @Test
+    fun watchLogDialogListsHistory() {
+        setCapture(
+            TimegrapherUiState(
+                hasPermission = true,
+                showWatchLog = true,
+                watches = listOf(
+                    com.deadaccurate.app.watchlog.WatchEntry(
+                        id = "w1",
+                        name = "SKX007",
+                        movementRef = "NH35",
+                        measurements = listOf(
+                            com.deadaccurate.app.watchlog.Measurement(
+                                timestampMs = 1_722_800_000_000,
+                                bph = 21600,
+                                secPerDay = -2.3f,
+                                beatErrorMs = 0.2f,
+                                mode = "CORRELATION",
+                                bandScores = emptyList(),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        compose.onNodeWithText("SKX007").assertExists()
+        compose.onNodeWithText("Movement: NH35").assertExists()
     }
 
     @Test
