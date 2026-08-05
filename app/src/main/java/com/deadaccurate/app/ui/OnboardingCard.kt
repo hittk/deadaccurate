@@ -12,6 +12,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.deadaccurate.app.TimegrapherUiState
 
 /**
  * First-run hardware guidance and the honest accuracy disclosure
@@ -46,6 +47,54 @@ fun OnboardingCard(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             TextButton(onClick = onDismiss) { Text("Got it") }
+        }
+    }
+}
+
+/** Session alerts: input loss, gate trouble, capture and replay errors. */
+@Composable
+fun Notices(state: TimegrapherUiState, onDismissInputLost: () -> Unit) {
+    if (state.inputLost) {
+        NoticeCard(
+            text = "Input lost — the wired microphone was disconnected. " +
+                "Reconnect it and start again.",
+            actionLabel = "Dismiss",
+            onAction = onDismissInputLost,
+        )
+    }
+    if (state.noTicksHint) {
+        NoticeCard(
+            text = "No ticks detected. Try tapping Recalibrate with the " +
+                "watch in place, adjusting the gate trim, or pressing the " +
+                "watch more firmly against the microphone.",
+        )
+    }
+    if (!state.unprocessedSupported) {
+        NoticeCard(
+            text = "This device doesn't support fully unprocessed audio " +
+                "input; using the voice-recognition source instead.",
+        )
+    }
+    state.startErrorCode?.let { code ->
+        NoticeCard(text = "Couldn't start audio capture (error $code).")
+    }
+    state.replayError?.let { message ->
+        NoticeCard(text = "Recording analysis failed: $message")
+    }
+}
+
+@Composable
+private fun NoticeCard(
+    text: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text, style = MaterialTheme.typography.bodyMedium)
+            if (actionLabel != null && onAction != null) {
+                TextButton(onClick = onAction) { Text(actionLabel) }
+            }
         }
     }
 }

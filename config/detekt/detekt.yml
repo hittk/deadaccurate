@@ -7,6 +7,8 @@ complexity:
   TooManyFunctions:
     # Intent-handler ViewModels aggregate many small public functions.
     thresholdInClasses: 40
+    # Compose UI files are collections of many small top-level composables.
+    thresholdInFiles: 24
   LongParameterList:
     # CaptureActions groups every screen intent into one data class.
     constructorThreshold: 16
@@ -17,3 +19,5 @@ complexity:
 style:
   MagicNumber:
     ignoreAnnotated: ['Composable']
+    # Theme palettes are top-level Color(0xFF...) properties.
+    ignorePropertyDeclaration: true

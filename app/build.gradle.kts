@@ -12,8 +12,8 @@ android {
         applicationId = "com.deadaccurate.app"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 11
-        versionName = "0.3.7"
+        versionCode = 12
+        versionName = "0.4.0"
     }
 
     // One committed keystore signs every build type in every environment
@@ -65,6 +65,9 @@ android {
                 // Robolectric + Compose + the DSP fixture generators share
                 // one test JVM; the default heap OOMs.
                 it.maxHeapSize = "2g"
+                // Lets captureToImage() work under Robolectric so the UI
+                // preview renders (UiPreviewCapture) can produce PNGs.
+                it.systemProperty("robolectric.pixelCopyRenderMode", "hardware")
             }
         }
     }

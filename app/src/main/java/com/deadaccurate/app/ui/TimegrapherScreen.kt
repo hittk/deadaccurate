@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -24,6 +24,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -73,7 +76,7 @@ fun TimegrapherScreen(viewModel: TimegrapherViewModel = viewModel()) {
         }
     }
 
-    Scaffold { innerPadding ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
         if (state.hasPermission) {
             CaptureContent(
                 state = state,
@@ -96,7 +99,11 @@ internal fun PermissionRationale(onRequest: () -> Unit, modifier: Modifier = Mod
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("DeadAccurate", style = MaterialTheme.typography.headlineLarge)
+        Text(
+            "DEADACCURATE",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
         Spacer(Modifier.height(16.dp))
         Text(
             "DeadAccurate listens to your watch through the microphone to " +
@@ -118,21 +125,58 @@ internal fun CaptureContent(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        BrandHeader(
+            capturing = state.capturing,
+            startEnabled = true,
+            onToggleCapture = actions.onToggleCapture,
+        )
+        NavTabs(
+            selected = if (state.showWatchLog) AppTab.WATCH_LOG else AppTab.MEASURE,
+            onSelect = { actions.watchLog.onShowWatchLog(it == AppTab.WATCH_LOG) },
+        )
+        if (state.showWatchLog) {
+            WatchLogScreen(
+                watches = state.watches,
+                onUpdateWatch = actions.watchLog.onUpdateWatch,
+                onDeleteWatch = actions.watchLog.onDeleteWatch,
+            )
+        } else {
+            MeasureContent(state, actions)
+        }
+    }
+    // Hosted at screen level so stopping the test surfaces the popup no
+    // matter which tab is showing.
+    state.pendingResult?.takeIf { state.showSaveDialog }?.let { result ->
+        SaveResultDialog(
+            result = result,
+            watches = state.watches,
+            onSave = actions.watchLog.onSaveResult,
+            onDismiss = actions.watchLog.onDismissSaveDialog,
+        )
+    }
+}
+
+@Composable
+private fun MeasureContent(state: TimegrapherUiState, actions: CaptureActions) {
+    StatusStrip(state)
+    Column(
+        modifier = Modifier
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("DeadAccurate", style = MaterialTheme.typography.headlineMedium)
-        InputSelector(state, actions.onSetInputPreference)
-        AnalysisModeSelector(mode = state.analysisMode, onSelect = actions.onSetAnalysisMode)
+        ResultActions(state, actions.watchLog)
+        Notices(state, actions.onDismissInputLost)
         if (!state.onboardingDismissed) {
             OnboardingCard(onDismiss = actions.onDismissOnboarding)
         }
-        Notices(state, actions.onDismissInputLost)
+        StatCardsGrid(state)
+        TracePanel(state)
+        SignalPanel(state)
 
-        RateReadout(state)
-        ResultActions(state, actions.watchLog)
-        BeatTrace(points = state.tracePoints, halfRangeMs = state.traceHalfRangeMs)
+        SectionLabel("BEAT RATE")
         RateSelector(
             overrideBph = state.bphOverride,
             detectedBph = state.detectedBph,
@@ -147,7 +191,34 @@ internal fun CaptureContent(
             )
         }
 
-        MeterSection(state)
+        SectionLabel("ANALYSIS MODE")
+        AnalysisModeSelector(mode = state.analysisMode, onSelect = actions.onSetAnalysisMode)
+
+        AdvancedSection(state, actions)
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun AdvancedSection(state: TimegrapherUiState, actions: CaptureActions) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    TextButton(onClick = { expanded = !expanded }) {
+        Text(
+            if (expanded) "ADVANCED ▲" else "ADVANCED ▼",
+            style = MaterialTheme.typography.labelLarge,
+        )
+    }
+    if (!expanded) return
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        InputSelector(state, actions.onSetInputPreference)
         GateControls(
             trimDb = state.gateTrimDb,
             calibrating = state.calibrating,
@@ -158,47 +229,12 @@ internal fun CaptureContent(
             clockCalSecPerDay = state.clockCalSecPerDay,
             onAdjust = actions.onAdjustClockCal,
         )
-
-        Button(onClick = actions.onToggleCapture, modifier = Modifier.fillMaxWidth()) {
-            Text(if (state.capturing) "Stop" else "Start listening")
-        }
         SecondaryActions(
             hasSession = state.tracePoints.isNotEmpty(),
             recordingSecondsLeft = state.recordingSecondsLeft,
             actions = actions,
         )
         StreamInfoFooter(state)
-    }
-}
-
-@Composable
-private fun Notices(state: TimegrapherUiState, onDismissInputLost: () -> Unit) {
-    if (state.inputLost) {
-        NoticeCard(
-            text = "Input lost — the wired microphone was disconnected. " +
-                "Reconnect it and start again.",
-            actionLabel = "Dismiss",
-            onAction = onDismissInputLost,
-        )
-    }
-    if (state.noTicksHint) {
-        NoticeCard(
-            text = "No ticks detected. Try tapping Recalibrate with the " +
-                "watch in place, adjusting the gate trim, or pressing the " +
-                "watch more firmly against the microphone.",
-        )
-    }
-    if (!state.unprocessedSupported) {
-        NoticeCard(
-            text = "This device doesn't support fully unprocessed audio " +
-                "input; using the voice-recognition source instead.",
-        )
-    }
-    state.startErrorCode?.let { code ->
-        NoticeCard(text = "Couldn't start audio capture (error $code).")
-    }
-    state.replayError?.let { message ->
-        NoticeCard(text = "Recording analysis failed: $message")
     }
 }
 
@@ -238,23 +274,6 @@ private fun SecondaryActions(
 }
 
 @Composable
-private fun MeterSection(state: TimegrapherUiState) {
-    LevelMeter(
-        rmsDb = state.rmsDb,
-        peakDb = state.peakDb,
-        thresholdDb = state.gateThresholdDb,
-        gateOpen = state.gateOpen,
-    )
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("RMS ${formatDb(state.rmsDb)}", style = MaterialTheme.typography.bodyMedium)
-        Text("Peak ${formatDb(state.peakDb)}", style = MaterialTheme.typography.bodyMedium)
-        state.gateThresholdDb?.let {
-            Text("Gate ${formatDb(it)}", style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}
-
-@Composable
 private fun StreamInfoFooter(state: TimegrapherUiState) {
     val info = state.streamInfo ?: return
     val text =
@@ -267,7 +286,11 @@ private fun StreamInfoFooter(state: TimegrapherUiState) {
                 if (info.exclusiveMode) "exclusive" else "shared",
             ).joinToString(" • ")
         }
-    Text(text, style = MaterialTheme.typography.bodySmall)
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
@@ -298,22 +321,3 @@ private fun InputSelector(
         }
     }
 }
-
-@Composable
-private fun NoticeCard(
-    text: String,
-    actionLabel: String? = null,
-    onAction: (() -> Unit)? = null,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text, style = MaterialTheme.typography.bodyMedium)
-            if (actionLabel != null && onAction != null) {
-                TextButton(onClick = onAction) { Text(actionLabel) }
-            }
-        }
-    }
-}
-
-private fun formatDb(db: Float): String =
-    if (db <= TimegrapherUiState.SILENCE_DB) "—" else "%.1f dB".format(db)

@@ -3,6 +3,8 @@ package com.deadaccurate.app.ui
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -64,7 +66,9 @@ class TimegrapherScreenTest {
     @Test
     fun searchingStateShowsPlaceholderReadout() {
         setCapture(TimegrapherUiState(hasPermission = true, capturing = true))
-        compose.onNodeWithText("—.— s/d").assertExists()
+        // Both the rate and beat-error cards read "—.—" while searching.
+        compose.onAllNodesWithText("—.—").onFirst().assertExists()
+        compose.onNodeWithText("SEC / DAY").assertExists()
         compose.onNodeWithText("searching for beat rate…").assertExists()
     }
 
@@ -83,8 +87,9 @@ class TimegrapherScreenTest {
                 beatErrorMs = 0.6f,
             ),
         )
-        compose.onNodeWithText("+4.2 s/d").assertExists()
-        compose.onNodeWithText("beat error 0.6 ms").assertExists()
+        compose.onNodeWithText("+4.2").assertExists()
+        compose.onNodeWithText("0.6").assertExists()
+        compose.onNodeWithText("BEAT ERROR").assertExists()
         compose.onNodeWithText("locked 28800 bph • 214 ticks").assertExists()
     }
 
@@ -102,7 +107,7 @@ class TimegrapherScreenTest {
                 rateTickCount = 100,
             ),
         )
-        compose.onNodeWithText("+4.2 s/d").assertExists()
+        compose.onNodeWithText("+4.2").assertExists()
         compose.onNodeWithText("locked 28800 bph • 100 ticks • cal -1.7 s/d").assertExists()
     }
 
@@ -163,6 +168,7 @@ class TimegrapherScreenTest {
     @Test
     fun exportDisabledWithoutASession() {
         setCapture(TimegrapherUiState(hasPermission = true))
+        compose.onNodeWithText("ADVANCED ▼").performScrollTo().performClick()
         compose.onNodeWithText("Export CSV").assertIsNotEnabled()
     }
 
@@ -174,6 +180,7 @@ class TimegrapherScreenTest {
                 tracePoints = listOf(TracePoint(1.5f, accepted = true)),
             ),
         )
+        compose.onNodeWithText("ADVANCED ▼").performScrollTo().performClick()
         compose.onNodeWithText("Export CSV").performScrollTo().performClick()
     }
 
@@ -348,6 +355,7 @@ class TimegrapherScreenTest {
                 streamInfo = com.deadaccurate.app.StreamInfo(48000, false, false),
             ),
         )
-        compose.onNodeWithText("48000 Hz • replay: watch.wav").assertExists()
+        compose.onNodeWithText("ADVANCED ▼").performScrollTo().performClick()
+        compose.onNodeWithText("48000 Hz • replay: watch.wav").performScrollTo().assertExists()
     }
 }

@@ -58,7 +58,11 @@ fun RateSelector(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         val autoLabel =
-            if (overrideBph == null && detectedBph > 0) "Auto ($detectedBph)" else "Auto"
+            if (overrideBph == null && detectedBph > 0) {
+                "Auto (${compactBph(detectedBph)})"
+            } else {
+                "Auto"
+            }
         FilterChip(
             selected = overrideBph == null,
             onClick = { onSelect(null) },
@@ -68,7 +72,7 @@ fun RateSelector(
             FilterChip(
                 selected = bph == overrideBph,
                 onClick = { onSelect(bph) },
-                label = { Text("$bph") },
+                label = { Text(compactBph(bph)) },
             )
         }
     }

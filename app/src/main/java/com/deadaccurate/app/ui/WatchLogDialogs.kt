@@ -30,10 +30,10 @@ import com.deadaccurate.app.TimegrapherUiState
 import com.deadaccurate.app.watchlog.WatchEntry
 
 /**
- * The finish-measurement row under the readout, plus the dialogs it opens:
- * the save-result popup (auto-opened when the user stops a test that has a
- * valid reading) and the watch-log browser. A live "Sounds like…" line
- * shows the movement guess while the test is still running.
+ * The finish-measurement row on the measure tab. The save popup itself is
+ * hosted at screen level (it opens when the user stops a test with a valid
+ * reading); this row carries the manual save button, the live "Sounds
+ * like…" recognition line, and the settled banner.
  */
 @Composable
 internal fun ResultActions(state: TimegrapherUiState, watchLog: WatchLogActions) {
@@ -48,7 +48,6 @@ internal fun ResultActions(state: TimegrapherUiState, watchLog: WatchLogActions)
         ) {
             Text(if (state.measurementSettled) "Save result ✓" else "Save result")
         }
-        TextButton(onClick = { watchLog.onShowWatchLog(true) }) { Text("Watch log") }
     }
     // Live recognition while the test runs; the popup itself waits for Stop.
     state.movementGuess?.let { guess ->
@@ -63,22 +62,6 @@ internal fun ResultActions(state: TimegrapherUiState, watchLog: WatchLogActions)
             "Reading settled — stop the test to save the result.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary,
-        )
-    }
-    state.pendingResult?.takeIf { state.showSaveDialog }?.let { result ->
-        SaveResultDialog(
-            result = result,
-            watches = state.watches,
-            onSave = watchLog.onSaveResult,
-            onDismiss = watchLog.onDismissSaveDialog,
-        )
-    }
-    if (state.showWatchLog) {
-        WatchLogBrowser(
-            watches = state.watches,
-            onUpdateWatch = watchLog.onUpdateWatch,
-            onDeleteWatch = watchLog.onDeleteWatch,
-            onDismiss = { watchLog.onShowWatchLog(false) },
         )
     }
 }
