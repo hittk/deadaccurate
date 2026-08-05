@@ -10,6 +10,7 @@ data class Measurement(
     val bph: Int,
     val secPerDay: Float,
     val beatErrorMs: Float?,
+    val amplitudeDeg: Float? = null,
     val mode: String,
     val bandScores: List<Float>,
 )

@@ -25,6 +25,7 @@ class WatchLogRepositoryTest {
         bph = 28800,
         secPerDay = secPerDay,
         beatErrorMs = 0.4f,
+        amplitudeDeg = 271.5f,
         mode = "CORRELATION",
         bandScores = listOf(1.2f, 3.4f, 7.1f, 2.0f),
     )
@@ -61,6 +62,7 @@ class WatchLogRepositoryTest {
             listOf(1.2f, 3.4f, 7.1f, 2.0f),
             entries[0].measurements[1].bandScores,
         )
+        assertEquals(271.5f, entries[0].measurements[0].amplitudeDeg!!, 1e-4f)
     }
 
     @Test

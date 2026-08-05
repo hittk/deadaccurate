@@ -79,8 +79,11 @@ bool ParseWav(const char* path, Wav* out) {
 void Run(const Wav& wav, deadaccurate::DspChain::AnalysisMode mode, const char* name) {
     deadaccurate::DspChain chain(wav.sampleRate);
     chain.SetAnalysisMode(mode);
+    chain.SetLiftAngleDeg(53.0);  // matches the reference app's setting
     deadaccurate::DspChain::Output output;
     deadaccurate::DspChain::RateFrame last{};
+    deadaccurate::DspChain::AmplitudeFrame lastAmp{};
+    int validAmpFrames = 0;
     int ticks = 0;
     int accepted = 0;
     size_t frames = 0;
@@ -91,6 +94,12 @@ void Run(const Wav& wav, deadaccurate::DspChain::AnalysisMode mode, const char* 
         for (const auto& tick : output.ticks) {
             ++ticks;
             if (tick.accepted) ++accepted;
+        }
+        for (const auto& amp : output.amplitudes) {
+            if (amp.valid) {
+                lastAmp = amp;
+                ++validAmpFrames;
+            }
         }
         for (const auto& rate : output.rates) {
             last = rate;
@@ -105,6 +114,12 @@ void Run(const Wav& wav, deadaccurate::DspChain::AnalysisMode mode, const char* 
                 name, static_cast<double>(frames) / wav.sampleRate, ticks, accepted,
                 last.activeBph, last.detectedBph, last.rateValid ? 1 : 0, last.secPerDay,
                 last.beatErrorMs);
+    if (validAmpFrames > 0) {
+        std::printf("   amplitude: %.0f deg (lift %.2f ms @ 53 deg lift angle), %d valid frames\n",
+                    lastAmp.amplitudeDeg, lastAmp.liftTimeMs, validAmpFrames);
+    } else {
+        std::printf("   amplitude: not resolvable\n");
+    }
     if (mode == deadaccurate::DspChain::AnalysisMode::kCorrelation) {
         std::printf("   band signature (score per 0.8-3k / 3-8k / 8-16k / 16-21.5k):\n");
         for (const int bph : {14400, 16200, 18000, 19800, 21600, 25200, 28800, 36000}) {

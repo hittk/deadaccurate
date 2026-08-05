@@ -237,14 +237,11 @@ fun StatCardsGrid(state: TimegrapherUiState) {
                 modifier = Modifier.weight(1f),
             )
             StatCard(
-                label = "SIGNAL",
-                value = if (state.rmsDb <= TimegrapherUiState.SILENCE_DB) {
-                    "—"
-                } else {
-                    "%.0f".format(state.rmsDb)
-                },
-                unit = if (state.gateOpen) "RMS DB • GATE OPEN" else "RMS DB",
-                emphasized = state.rmsDb > TimegrapherUiState.SILENCE_DB,
+                label = "AMPLITUDE",
+                value = state.amplitudeDeg?.let { "%.0f".format(it) } ?: "—",
+                unit = state.liftTimeMs?.let { "DEGREES • %.1f MS LIFT".format(it) }
+                    ?: "DEGREES",
+                emphasized = state.amplitudeDeg != null,
                 modifier = Modifier.weight(1f),
             )
         }

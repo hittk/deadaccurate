@@ -33,4 +33,9 @@ data class UserSettings(
      */
     val clockCalSecPerDay: Float = 0f,
     val analysisMode: AnalysisMode = AnalysisMode.EDGE,
+    /**
+     * Lift angle in degrees for the amplitude formula — a per-calibre
+     * datum (most modern movements ~52; check the calibre's spec sheet).
+     */
+    val liftAngleDeg: Float = 52f,
 )

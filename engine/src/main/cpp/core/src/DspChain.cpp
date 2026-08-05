@@ -14,7 +14,8 @@ DspChain::DspChain(int sampleRate)
       levelAnalyzer_(static_cast<size_t>(sampleRate / kLevelFramesPerSecond)),
       rateDetector_(sampleRate),
       rateEstimator_(sampleRate),
-      folding_(sampleRate) {
+      folding_(sampleRate),
+      amplitude_(sampleRate) {
     for (int c = 0; c < FoldingAnalyzer::kChannels; ++c) {
         // Clamp band tops below Nyquist for low device sample rates.
         const double hi = std::min(kCorrBandEdgesHz[c + 1], sampleRate * 0.45);
@@ -64,7 +65,14 @@ void DspChain::EmitRateFrame(Output& out) {
         estimate.tickCount,
         static_cast<float>(estimate.beatErrorMs),
     });
+    EmitAmplitudeFrame(out, activeBph_);
     rateDirty_ = false;
+}
+
+void DspChain::EmitAmplitudeFrame(Output& out, int bph) {
+    const auto estimate = amplitude_.Current(bph, liftAngleDeg_);
+    out.amplitudes.push_back(
+        {estimate.valid, estimate.amplitudeDeg, estimate.liftTimeMs});
 }
 
 void DspChain::Process(const float* samples, size_t count, Output& out) {
@@ -73,11 +81,15 @@ void DspChain::Process(const float* samples, size_t count, Output& out) {
     out.rates.clear();
     out.phases.clear();
     out.signatures.clear();
+    out.amplitudes.clear();
 
     for (size_t i = 0; i < count; ++i) {
         const float filtered = bandPass_.Process(samples[i]);
         const float env = envelope_.Process(filtered);
         const bool gateOpen = gate_.Process(env);
+        // Amplitude reads the band-passed signal directly — the gating
+        // envelope's 5 ms release would smear the tick's sub-pulses.
+        amplitude_.Push(filtered);
 
         // Edge path: always runs (cheap, and keeps it warm across mode
         // switches); only emits in edge mode.
@@ -85,6 +97,7 @@ void DspChain::Process(const float* samples, size_t count, Output& out) {
             rateDetector_.AddOnset(tick->frameIndex);
             ResolveActiveRate();
             const auto result = rateEstimator_.AddTick(tick->frameIndex);
+            amplitude_.OnTick(tick->frameIndex);
             if (mode_ == AnalysisMode::kEdge) {
                 out.ticks.push_back({tick->frameIndex, tick->peakDb, result.accepted});
             }
@@ -117,6 +130,9 @@ void DspChain::Process(const float* samples, size_t count, Output& out) {
                 if (snapshot.phaseValid) {
                     out.phases.push_back({snapshot.phaseDeviationMs, snapshot.periodMs});
                 }
+                // Edge-path ticks feed the lift times; the folding lock
+                // supplies the beat rate the formula needs.
+                EmitAmplitudeFrame(out, snapshot.activeBph);
                 rateDirty_ = false;
             }
         }

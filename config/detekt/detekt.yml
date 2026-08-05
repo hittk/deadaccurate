@@ -4,14 +4,21 @@ naming:
     ignoreAnnotated: ['Composable']
 
 complexity:
+  LongMethod:
+    # EventDecoder.decode is one flat when() over the event kinds — length
+    # tracks the number of kinds, not complexity.
+    ignoreAnnotated: ['Composable']
+    threshold: 80
   TooManyFunctions:
     # Intent-handler ViewModels aggregate many small public functions.
     thresholdInClasses: 40
     # Compose UI files are collections of many small top-level composables.
     thresholdInFiles: 24
+    # NativeEngine is a flat JNI surface: one external fun per native call.
+    thresholdInObjects: 20
   LongParameterList:
     # CaptureActions groups every screen intent into one data class.
-    constructorThreshold: 16
+    constructorThreshold: 20
     # Composables pass state down and events up; parameter lists grow by
     # design and slot-object indirection would only obscure them.
     ignoreAnnotated: ['Composable']

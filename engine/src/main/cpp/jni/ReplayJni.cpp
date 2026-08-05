@@ -50,6 +50,14 @@ Java_com_deadaccurate_engine_ReplayEngine_nativeSetGateTrimDb(JNIEnv* /*env*/,
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_deadaccurate_engine_ReplayEngine_nativeSetLiftAngleDeg(JNIEnv* /*env*/,
+                                                                jobject /*thiz*/,
+                                                                jlong handle,
+                                                                jfloat degrees) {
+    FromHandle(handle)->chain.SetLiftAngleDeg(degrees);
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_deadaccurate_engine_ReplayEngine_nativeSetAnalysisMode(JNIEnv* /*env*/,
                                                                 jobject /*thiz*/,
                                                                 jlong handle, jint mode) {
@@ -97,6 +105,10 @@ Java_com_deadaccurate_engine_ReplayEngine_nativeProcess(JNIEnv* env, jobject /*t
     for (const auto& sig : session->output.signatures) {
         events.push_back(deadaccurate::MakeSignatureEvent(
             sig.bph, sig.bandScores, deadaccurate::FoldingAnalyzer::kChannels));
+    }
+    for (const auto& amp : session->output.amplitudes) {
+        events.push_back(deadaccurate::MakeAmplitudeEvent(amp.valid, amp.amplitudeDeg,
+                                                          amp.liftTimeMs));
     }
 
     const size_t capacity =

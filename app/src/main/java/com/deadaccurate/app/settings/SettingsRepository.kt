@@ -28,6 +28,7 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
             analysisMode = prefs[KEY_ANALYSIS_MODE]
                 ?.let { stored -> AnalysisMode.entries.find { it.name == stored } }
                 ?: AnalysisMode.EDGE,
+            liftAngleDeg = prefs[KEY_LIFT_ANGLE] ?: DEFAULT_LIFT_ANGLE_DEG,
         )
     }
 
@@ -57,6 +58,10 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[KEY_ANALYSIS_MODE] = mode.name }
     }
 
+    suspend fun setLiftAngleDeg(degrees: Float) {
+        dataStore.edit { it[KEY_LIFT_ANGLE] = degrees }
+    }
+
     private companion object {
         val KEY_GATE_TRIM = floatPreferencesKey("gate_trim_db")
         val KEY_BPH_OVERRIDE = intPreferencesKey("bph_override")
@@ -64,5 +69,7 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         val KEY_ONBOARDING_DISMISSED = booleanPreferencesKey("onboarding_dismissed")
         val KEY_CLOCK_CAL = floatPreferencesKey("clock_cal_sec_per_day")
         val KEY_ANALYSIS_MODE = stringPreferencesKey("analysis_mode")
+        val KEY_LIFT_ANGLE = floatPreferencesKey("lift_angle_deg")
+        const val DEFAULT_LIFT_ANGLE_DEG = 52f
     }
 }

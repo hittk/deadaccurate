@@ -326,7 +326,8 @@ private fun EditWatchDialog(
 
 private fun formatReading(m: Measurement): String {
     val beatError = m.beatErrorMs?.let { " • %.1f ms beat error".format(it) } ?: ""
-    return "%+.1f s/d".format(m.secPerDay) + beatError + " • ${m.bph} bph"
+    val amplitude = m.amplitudeDeg?.let { " • %.0f°".format(it) } ?: ""
+    return "%+.1f s/d".format(m.secPerDay) + beatError + amplitude + " • ${m.bph} bph"
 }
 
 private fun formatDate(timestampMs: Long): String =

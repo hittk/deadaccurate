@@ -149,6 +149,12 @@ internal fun ResultSummary(result: PendingResult) {
         "${result.bph} bph • $beatError",
         style = MaterialTheme.typography.bodyMedium,
     )
+    result.amplitudeDeg?.let { amplitude ->
+        Text(
+            "amplitude %.0f°".format(amplitude),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
     result.guess?.let { guess ->
         Text(
             "Sounds like a ${guess.movementRef} (heard on “${guess.watchName}”)",

@@ -28,6 +28,11 @@ class ReplayEngine(sampleRate: Int) : AutoCloseable {
         nativeSetAnalysisMode(handle, mode)
     }
 
+    fun setLiftAngleDeg(degrees: Float) {
+        checkOpen()
+        nativeSetLiftAngleDeg(handle, degrees)
+    }
+
     fun process(samples: FloatArray, count: Int = samples.size): List<EngineEvent> {
         checkOpen()
         require(count <= CHUNK_FRAMES) { "chunk too large: $count" }
@@ -48,6 +53,7 @@ class ReplayEngine(sampleRate: Int) : AutoCloseable {
     private external fun nativeSetBphOverride(handle: Long, bph: Int)
     private external fun nativeSetGateTrimDb(handle: Long, trimDb: Float)
     private external fun nativeSetAnalysisMode(handle: Long, mode: Int)
+    private external fun nativeSetLiftAngleDeg(handle: Long, degrees: Float)
     private external fun nativeProcess(
         handle: Long,
         samples: FloatArray,

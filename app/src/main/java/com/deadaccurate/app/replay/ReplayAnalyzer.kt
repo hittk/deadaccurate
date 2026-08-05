@@ -21,6 +21,7 @@ class ReplayAnalyzer(private val contentResolver: ContentResolver) {
         val gateTrimDb: Float,
         /** [com.deadaccurate.engine.AnalysisModeNative] value. */
         val analysisMode: Int,
+        val liftAngleDeg: Float = 52f,
     )
 
     /**
@@ -56,6 +57,7 @@ class ReplayAnalyzer(private val contentResolver: ContentResolver) {
             engine.setBphOverride(config.bphOverride)
             engine.setGateTrimDb(config.gateTrimDb)
             engine.setAnalysisMode(config.analysisMode)
+            engine.setLiftAngleDeg(config.liftAngleDeg)
 
             val chunk = FloatArray(ReplayEngine.CHUNK_FRAMES)
             var offset = 0

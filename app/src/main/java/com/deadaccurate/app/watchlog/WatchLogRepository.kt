@@ -132,6 +132,7 @@ class WatchLogRepository(private val file: File) {
                     obj.put("bph", m.bph)
                     obj.put("secPerDay", m.secPerDay.toDouble())
                     m.beatErrorMs?.let { obj.put("beatErrorMs", it.toDouble()) }
+                    m.amplitudeDeg?.let { obj.put("amplitudeDeg", it.toDouble()) }
                     obj.put("mode", m.mode)
                     val scores = JSONArray()
                     for (s in m.bandScores) scores.put(s.toDouble())
@@ -166,6 +167,11 @@ class WatchLogRepository(private val file: File) {
                             secPerDay = m.getDouble("secPerDay").toFloat(),
                             beatErrorMs = if (m.has("beatErrorMs")) {
                                 m.getDouble("beatErrorMs").toFloat()
+                            } else {
+                                null
+                            },
+                            amplitudeDeg = if (m.has("amplitudeDeg")) {
+                                m.getDouble("amplitudeDeg").toFloat()
                             } else {
                                 null
                             },

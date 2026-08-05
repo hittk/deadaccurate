@@ -25,6 +25,7 @@ internal object NativeEngine {
     external fun nativeDestroy(handle: Long)
 
     external fun nativeSetGateTrimDb(handle: Long, trimDb: Float)
+    external fun nativeSetLiftAngleDeg(handle: Long, degrees: Float)
 
     external fun nativeRecalibrateGate(handle: Long)
 

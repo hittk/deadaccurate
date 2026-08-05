@@ -36,6 +36,7 @@ public:
     // Control surface (FR-3/FR-4). Safe to call from any thread, before or
     // during capture; the DSP thread applies changes between blocks.
     void SetGateTrimDb(float trimDb) { gateTrimDb_.store(trimDb); }
+    void SetLiftAngleDeg(float degrees) { liftAngleDeg_.store(degrees); }
     void RecalibrateGate() { recalibrateRequested_.store(true); }
     // Positive pins the beat rate (FR-4 override); 0 = auto-detect.
     void SetBphOverride(int bph) { bphOverride_.store(bph); }
@@ -64,6 +65,7 @@ private:
     std::atomic<bool> disconnected_{false};
 
     std::atomic<float> gateTrimDb_{0.0f};
+    std::atomic<float> liftAngleDeg_{52.0f};
     std::atomic<int> bphOverride_{0};
     std::atomic<int> analysisMode_{0};
     std::atomic<bool> recalibrateRequested_{false};

@@ -23,6 +23,8 @@ data class CaptureActions(
     val onRecordDiagnostic: () -> Unit,
     /** Delta in s/day; 0 resets the calibration. */
     val onAdjustClockCal: (Float) -> Unit,
+    /** Lift angle in degrees for the amplitude formula (per-calibre). */
+    val onSetLiftAngle: (Float) -> Unit,
     val watchLog: WatchLogActions,
 )
 
@@ -54,6 +56,7 @@ fun captureActions(viewModel: TimegrapherViewModel) = CaptureActions(
     onExportHandled = viewModel::onExportHandled,
     onRecordDiagnostic = viewModel::recordDiagnostic,
     onAdjustClockCal = viewModel::adjustClockCal,
+    onSetLiftAngle = viewModel::setLiftAngleDeg,
     watchLog = WatchLogActions(
         onOpenSaveDialog = viewModel::openSaveDialog,
         onDismissSaveDialog = viewModel::dismissSaveDialog,

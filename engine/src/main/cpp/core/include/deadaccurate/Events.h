@@ -27,6 +27,7 @@ enum class EventType : int {
     kSignature = 6,  // acoustic signature: v[1]=bph, v[2..5]=fold score of
                      // that rate in each analysis band (movement
                      // recognition raw material)
+    kAmplitude = 7,  // v[1]=valid, v[2]=amplitudeDeg, v[3]=liftTimeMs
 };
 
 enum class EngineState : int {
@@ -69,6 +70,15 @@ inline Event MakePhaseEvent(float phaseDeviationMs, float periodMs) {
     e.v[0] = static_cast<float>(EventType::kPhase);
     e.v[1] = phaseDeviationMs;
     e.v[2] = periodMs;
+    return e;
+}
+
+inline Event MakeAmplitudeEvent(bool valid, float amplitudeDeg, float liftTimeMs) {
+    Event e{};
+    e.v[0] = static_cast<float>(EventType::kAmplitude);
+    e.v[1] = valid ? 1.0f : 0.0f;
+    e.v[2] = amplitudeDeg;
+    e.v[3] = liftTimeMs;
     return e;
 }
 

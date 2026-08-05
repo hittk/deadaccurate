@@ -54,6 +54,7 @@ data class PendingResult(
     /** Corrected (includes the clock calibration) — the number that matters. */
     val secPerDay: Float,
     val beatErrorMs: Float?,
+    val amplitudeDeg: Float?,
     val mode: AnalysisMode,
     /** Acoustic signature captured with the result; teaches the guesser. */
     val bandScores: List<Float>,
@@ -107,6 +108,11 @@ data class TimegrapherUiState(
     val measurementSettled: Boolean = false,
     /** Live movement recognition while measuring ("Sounds like a NH34"). */
     val movementGuess: MovementGuesser.Guess? = null,
+    /** Balance amplitude; null while the tick micro-structure is unresolved. */
+    val amplitudeDeg: Float? = null,
+    val liftTimeMs: Float? = null,
+    /** Per-calibre lift angle used by the amplitude formula. */
+    val liftAngleDeg: Float = 52f,
     /** Saved watches with their measurement history, newest first. */
     val watches: List<WatchEntry> = emptyList(),
     val showSaveDialog: Boolean = false,
@@ -185,6 +191,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         engine.setGateTrimDb(stored.gateTrimDb)
         engine.setBphOverride(stored.bphOverride ?: 0)
         engine.setAnalysisMode(stored.analysisMode.native)
+        engine.setLiftAngleDeg(stored.liftAngleDeg)
         _uiState.update {
             it.copy(
                 gateTrimDb = stored.gateTrimDb,
@@ -193,6 +200,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 analysisMode = stored.analysisMode,
                 onboardingDismissed = stored.onboardingDismissed,
                 clockCalSecPerDay = stored.clockCalSecPerDay,
+                liftAngleDeg = stored.liftAngleDeg,
             )
         }
     }
@@ -281,6 +289,13 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         engine.recalibrateGate()
     }
 
+    /** Lift angle for the amplitude formula (per-calibre, 30-70 degrees). */
+    fun setLiftAngleDeg(degrees: Float) {
+        engine.setLiftAngleDeg(degrees)
+        _uiState.update { it.copy(liftAngleDeg = degrees) }
+        viewModelScope.launch { settingsRepository.setLiftAngleDeg(degrees) }
+    }
+
     /** Analyzes a recorded WAV through the same chain as live capture. */
     fun replayFile(uri: Uri) {
         val name = uri.lastPathSegment?.substringAfterLast('/') ?: "recording"
@@ -291,6 +306,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                     bphOverride = _uiState.value.bphOverride ?: 0,
                     gateTrimDb = _uiState.value.gateTrimDb,
                     analysisMode = _uiState.value.analysisMode.native,
+                    liftAngleDeg = _uiState.value.liftAngleDeg,
                 ),
                 onStart = onStart,
                 onEvent = ::onEngineEvent,
@@ -310,6 +326,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                     bphOverride = _uiState.value.bphOverride ?: 0,
                     gateTrimDb = 0f,
                     analysisMode = _uiState.value.analysisMode.native,
+                    liftAngleDeg = _uiState.value.liftAngleDeg,
                 ),
                 onStart = onStart,
                 onEvent = ::onEngineEvent,
@@ -370,6 +387,8 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 streamInfo = null,
                 measurementSettled = false,
                 movementGuess = null,
+                amplitudeDeg = null,
+                liftTimeMs = null,
                 showSaveDialog = false,
                 pendingResult = null,
             )
@@ -394,6 +413,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         engine.setBphOverride(_uiState.value.bphOverride ?: 0)
         engine.setGateTrimDb(_uiState.value.gateTrimDb)
         engine.setAnalysisMode(_uiState.value.analysisMode.native)
+        engine.setLiftAngleDeg(_uiState.value.liftAngleDeg)
 
         val result = engine.start(deviceId, preset)
         if (result != 0) {
@@ -434,6 +454,8 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 streamInfo = null,
                 measurementSettled = false,
                 movementGuess = null,
+                amplitudeDeg = null,
+                liftTimeMs = null,
             )
         }
     }
@@ -449,6 +471,17 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
             is EngineEvent.Rate -> onRate(event)
 
             is EngineEvent.Signature -> onSignature(event)
+
+            is EngineEvent.Amplitude -> {
+                if (event.amplitudeDeg != _uiState.value.amplitudeDeg) {
+                    _uiState.update {
+                        it.copy(
+                            amplitudeDeg = event.amplitudeDeg,
+                            liftTimeMs = event.liftTimeMs,
+                        )
+                    }
+                }
+            }
 
             is EngineEvent.Status -> onStatus(event)
         }
@@ -651,6 +684,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
             bph = state.activeBph,
             secPerDay = state.correctedSecPerDay,
             beatErrorMs = state.beatErrorMs,
+            amplitudeDeg = state.amplitudeDeg,
             mode = state.analysisMode,
             bandScores = scores,
             guess = MovementGuesser.guess(state.activeBph, scores, watchLog.watches.value),
@@ -684,6 +718,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                     bph = pending.bph,
                     secPerDay = pending.secPerDay,
                     beatErrorMs = pending.beatErrorMs,
+                    amplitudeDeg = pending.amplitudeDeg,
                     mode = pending.mode.name,
                     bandScores = pending.bandScores,
                 ),

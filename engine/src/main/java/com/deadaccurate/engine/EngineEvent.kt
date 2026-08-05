@@ -64,6 +64,13 @@ sealed interface EngineEvent {
         val locked: Boolean get() = detectedBph > 0
     }
 
+    /**
+     * Balance amplitude from tick sub-pulse timing (~2 Hz). Null values
+     * mean the signal does not resolve the tick micro-structure — render
+     * as "—" rather than a number.
+     */
+    data class Amplitude(val amplitudeDeg: Float?, val liftTimeMs: Float?) : EngineEvent
+
     /** Engine/stream state snapshot; emitted on every state change. */
     data class Status(
         val state: EngineState,
@@ -112,6 +119,7 @@ object EventDecoder {
     private const val TYPE_RATE = 4
     private const val TYPE_PHASE = 5
     private const val TYPE_SIGNATURE = 6
+    private const val TYPE_AMPLITUDE = 7
 
     /** Analysis bands carried in a signature event. */
     const val SIGNATURE_BANDS = 4
@@ -171,6 +179,15 @@ object EventDecoder {
                         bandScores = List(SIGNATURE_BANDS) { buffer[base + 2 + it] },
                     ),
                 )
+                TYPE_AMPLITUDE -> {
+                    val valid = buffer[base + 1] != 0f
+                    events.add(
+                        EngineEvent.Amplitude(
+                            amplitudeDeg = buffer[base + 2].takeIf { valid },
+                            liftTimeMs = buffer[base + 3].takeIf { valid },
+                        ),
+                    )
+                }
                 // Unknown types are skipped: a newer native lib may emit
                 // event types this decoder predates.
             }

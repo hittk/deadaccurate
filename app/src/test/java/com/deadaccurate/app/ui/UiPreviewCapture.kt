@@ -74,6 +74,8 @@ class UiPreviewCapture {
                     gateThresholdDb = -52f,
                     gateOpen = true,
                     measurementSettled = true,
+                    amplitudeDeg = 271f,
+                    liftTimeMs = 8.6f,
                     tracePoints = trace,
                     traceHalfRangeMs = 83f,
                     movementGuess = com.deadaccurate.app.watchlog.MovementGuesser.Guess(
@@ -143,6 +145,7 @@ class UiPreviewCapture {
         onExportHandled = {},
         onRecordDiagnostic = {},
         onAdjustClockCal = {},
+        onSetLiftAngle = {},
         watchLog = WatchLogActions(
             onOpenSaveDialog = {},
             onDismissSaveDialog = {},

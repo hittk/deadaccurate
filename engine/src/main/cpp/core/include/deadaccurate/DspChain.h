@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "deadaccurate/AmplitudeAnalyzer.h"
 #include "deadaccurate/BeatRateDetector.h"
 #include "deadaccurate/Biquad.h"
 #include "deadaccurate/EnvelopeFollower.h"
@@ -69,12 +70,22 @@ public:
         float bandScores[FoldingAnalyzer::kChannels];
     };
 
+    // Balance amplitude from tick sub-pulse timing (edge-path ticks; the
+    // signal must be strong enough to resolve ~2 ms pulses). Emitted at
+    // rate-frame cadence; valid=false renders as "—".
+    struct AmplitudeFrame {
+        bool valid;
+        float amplitudeDeg;
+        float liftTimeMs;
+    };
+
     struct Output {
         std::vector<LevelFrame> levels;
         std::vector<TickEvent> ticks;
         std::vector<RateFrame> rates;
         std::vector<PhaseFrame> phases;
         std::vector<SignatureFrame> signatures;
+        std::vector<AmplitudeFrame> amplitudes;
     };
 
     explicit DspChain(int sampleRate);
@@ -85,6 +96,9 @@ public:
     // FR-4: a positive bph pins the rate; 0 returns to auto-detection.
     void SetBphOverride(int bph);
     void SetAnalysisMode(AnalysisMode mode);
+    // Lift angle for the amplitude formula; a per-calibre datum (30-70,
+    // typically 52) the user can set.
+    void SetLiftAngleDeg(double degrees) { liftAngleDeg_ = degrees; }
 
     // Clears and refills `out` from `count` input samples.
     void Process(const float* samples, size_t count, Output& out);
@@ -98,6 +112,7 @@ public:
 private:
     void ResolveActiveRate();
     void EmitRateFrame(Output& out);
+    void EmitAmplitudeFrame(Output& out, int bph);
 
     static constexpr double kBandLowHz = 2000.0;
     static constexpr double kBandHighHz = 12000.0;
@@ -127,9 +142,11 @@ private:
     BeatRateDetector rateDetector_;
     RateEstimator rateEstimator_;
     FoldingAnalyzer folding_;
+    AmplitudeAnalyzer amplitude_;
     std::vector<LevelAnalyzer::Level> levelScratch_;
 
     AnalysisMode mode_ = AnalysisMode::kEdge;
+    double liftAngleDeg_ = 52.0;
     int overrideBph_ = 0;
     int activeBph_ = 0;
     int levelHopCounter_ = 0;

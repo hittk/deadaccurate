@@ -49,6 +49,14 @@ Java_com_deadaccurate_engine_NativeEngine_nativeDestroy(JNIEnv* /*env*/, jobject
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_deadaccurate_engine_NativeEngine_nativeSetLiftAngleDeg(JNIEnv* /*env*/,
+                                                                jobject /*thiz*/,
+                                                                jlong handle,
+                                                                jfloat degrees) {
+    FromHandle(handle)->SetLiftAngleDeg(degrees);
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_deadaccurate_engine_NativeEngine_nativeSetGateTrimDb(JNIEnv* /*env*/,
                                                               jobject /*thiz*/, jlong handle,
                                                               jfloat trimDb) {

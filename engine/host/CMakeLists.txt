@@ -21,6 +21,7 @@ add_executable(core_tests
     tests/DspChainTest.cpp
     tests/BeatRateDetectorTest.cpp
     tests/RateEstimatorTest.cpp
+    tests/AmplitudeAnalyzerTest.cpp
     tests/RealRecordingTest.cpp
     tests/VersionTest.cpp
     tests/TestMain.cpp

@@ -43,6 +43,12 @@ class AudioEngine {
         NativeEngine.nativeSetGateTrimDb(handle, trimDb)
     }
 
+    /** Lift angle in degrees for the amplitude formula (per-calibre). */
+    fun setLiftAngleDeg(degrees: Float) {
+        ensureHandle()
+        NativeEngine.nativeSetLiftAngleDeg(handle, degrees)
+    }
+
     /** Re-measures the ambient noise floor (FR-3). */
     fun recalibrateGate() {
         ensureHandle()

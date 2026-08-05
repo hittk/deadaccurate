@@ -194,8 +194,36 @@ private fun MeasureContent(state: TimegrapherUiState, actions: CaptureActions) {
         SectionLabel("ANALYSIS MODE")
         AnalysisModeSelector(mode = state.analysisMode, onSelect = actions.onSetAnalysisMode)
 
+        SectionLabel("LIFT ANGLE")
+        LiftAngleControl(state.liftAngleDeg, actions.onSetLiftAngle)
+
         AdvancedSection(state, actions)
     }
+}
+
+@Composable
+private fun LiftAngleControl(liftAngleDeg: Float, onSet: (Float) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.Slider(
+            value = liftAngleDeg,
+            onValueChange = { onSet(it) },
+            valueRange = 30f..70f,
+            steps = 39,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "${liftAngleDeg.toInt()}°",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 12.dp),
+        )
+    }
+    Text(
+        "The calibre's lift angle — amplitude is computed from it " +
+            "(most modern movements: 50–53°).",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable

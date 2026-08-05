@@ -47,6 +47,7 @@ class TimegrapherScreenTest {
         onExportHandled = {},
         onRecordDiagnostic = {},
         onAdjustClockCal = {},
+        onSetLiftAngle = {},
         watchLog = WatchLogActions(
             onOpenSaveDialog = {},
             onDismissSaveDialog = {},
@@ -91,6 +92,21 @@ class TimegrapherScreenTest {
         compose.onNodeWithText("0.6").assertExists()
         compose.onNodeWithText("BEAT ERROR").assertExists()
         compose.onNodeWithText("locked 28800 bph • 214 ticks").assertExists()
+    }
+
+    @Test
+    fun amplitudeCardShowsDegreesAndLiftTime() {
+        setCapture(
+            TimegrapherUiState(
+                hasPermission = true,
+                capturing = true,
+                activeBph = 21600,
+                amplitudeDeg = 271f,
+                liftTimeMs = 8.6f,
+            ),
+        )
+        compose.onNodeWithText("271").assertExists()
+        compose.onNodeWithText("DEGREES • 8.6 MS LIFT").assertExists()
     }
 
     @Test
@@ -274,6 +290,7 @@ class TimegrapherScreenTest {
                             bph = 21600,
                             secPerDay = 202.4f,
                             beatErrorMs = 0.7f,
+                            amplitudeDeg = 248f,
                             mode = com.deadaccurate.app.settings.AnalysisMode.CORRELATION,
                             bandScores = listOf(1f, 2f, 3f, 8f),
                             guess = com.deadaccurate.app.watchlog.MovementGuesser.Guess(

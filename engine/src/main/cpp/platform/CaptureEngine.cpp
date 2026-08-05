@@ -121,9 +121,11 @@ void CaptureEngine::DspLoop() {
     std::vector<float> scratch(1024);
 
     float appliedTrimDb = gateTrimDb_.load();
+    float appliedLiftDeg = liftAngleDeg_.load();
     int appliedBph = bphOverride_.load();
     int appliedMode = analysisMode_.load();
     chain.SetGateTrimDb(appliedTrimDb);
+    chain.SetLiftAngleDeg(appliedLiftDeg);
     chain.SetBphOverride(appliedBph);
     chain.SetAnalysisMode(static_cast<DspChain::AnalysisMode>(appliedMode));
     int64_t previousTickFrame = -1;
@@ -142,6 +144,11 @@ void CaptureEngine::DspLoop() {
         if (trimDb != appliedTrimDb) {
             appliedTrimDb = trimDb;
             chain.SetGateTrimDb(trimDb);
+        }
+        const float liftDeg = liftAngleDeg_.load();
+        if (liftDeg != appliedLiftDeg) {
+            appliedLiftDeg = liftDeg;
+            chain.SetLiftAngleDeg(liftDeg);
         }
         const int bph = bphOverride_.load();
         if (bph != appliedBph) {
@@ -187,6 +194,9 @@ void CaptureEngine::DspLoop() {
         for (const auto& sig : output.signatures) {
             events_.Push(MakeSignatureEvent(sig.bph, sig.bandScores,
                                             FoldingAnalyzer::kChannels));
+        }
+        for (const auto& amp : output.amplitudes) {
+            events_.Push(MakeAmplitudeEvent(amp.valid, amp.amplitudeDeg, amp.liftTimeMs));
         }
     }
 }
