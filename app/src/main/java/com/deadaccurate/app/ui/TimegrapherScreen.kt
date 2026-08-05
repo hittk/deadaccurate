@@ -168,10 +168,6 @@ private fun MeasureContent(state: TimegrapherUiState, actions: CaptureActions) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         ResultActions(state, actions.watchLog)
-        Notices(state, actions.onDismissInputLost)
-        if (!state.onboardingDismissed) {
-            OnboardingCard(onDismiss = actions.onDismissOnboarding)
-        }
         StatCardsGrid(state)
         TracePanel(state)
         SignalPanel(state)
@@ -198,6 +194,12 @@ private fun MeasureContent(state: TimegrapherUiState, actions: CaptureActions) {
         LiftAngleControl(state.liftAngleDeg, actions.onSetLiftAngle)
 
         AdvancedSection(state, actions)
+
+        // Informational messages live below the instrument, out of the way.
+        Notices(state, actions.onDismissInputLost)
+        if (!state.onboardingDismissed) {
+            OnboardingCard(onDismiss = actions.onDismissOnboarding)
+        }
     }
 }
 

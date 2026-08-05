@@ -69,12 +69,6 @@ fun Notices(state: TimegrapherUiState, onDismissInputLost: () -> Unit) {
                 "watch more firmly against the microphone.",
         )
     }
-    if (!state.unprocessedSupported) {
-        NoticeCard(
-            text = "This device doesn't support fully unprocessed audio " +
-                "input; using the voice-recognition source instead.",
-        )
-    }
     state.startErrorCode?.let { code ->
         NoticeCard(text = "Couldn't start audio capture (error $code).")
     }

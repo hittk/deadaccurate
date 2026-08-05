@@ -35,7 +35,7 @@ fun BeatTrace(
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(220.dp)
+            .height(110.dp)
             .background(background, RoundedCornerShape(12.dp)),
     ) {
         val midY = size.height / 2f
