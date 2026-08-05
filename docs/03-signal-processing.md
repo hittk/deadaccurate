@@ -198,3 +198,29 @@ reshaped the design:
   score. Scoring integrates up to 30 s.
 - The running mean is primed on the first bin so the start-up transient
   can't inflate profile sigma for the whole window.
+
+The four-watch batch (ETA 2824-2, L844.4, NH34, ST2533 — see
+docs/05-movement-catalogue.md) added three more mechanisms:
+
+- **Winsorization:** a placement knock is 10²–10⁵× the ambient bin energy
+  and, folded at *any* period, forges a false peak for every candidate —
+  one batch recording had all 8 rates scoring above the lock threshold
+  for 30 s. Centered bins are clipped to 12× a running |centered| scale;
+  the mean and the scale both update from the *clipped* value so a knock
+  can drag neither (an unclipped mean update leaves a long negative tail
+  while the elevated mean decays back down).
+- **Overload floor:** a *solitary* gross overload (>30× scale, none in
+  the prior 2 s) means the acoustic coupling itself changed — the watch
+  was just placed on the mic — so pre-knock history only slows the lock.
+  Scoring folds only post-knock bins; lock evaluation freezes (instead of
+  unlocking) until enough usable history rebuilds. Recurring overloads
+  (a strong watch can overload every beat) never advance the floor, so a
+  loud signal cannot starve its own scoring. Cut the L844.4's lock from
+  ~36 s to ~10 s.
+- **Rate-offset scoring grid:** a movement far off nominal slides across
+  the fold window (+200 s/day ≈ 69 ms over 30 s — dozens of slots) and
+  smears its own peak. Every candidate is scored at five period offsets
+  (±0.3%, ≈ ±260 s/day) and takes its best. The ST2533 (~+200 s/day
+  fast, likely magnetized) locks in ~4 s with this; without it, nothing.
+  Once locked, the sticky-peak phase tracker follows the drift fine —
+  the fit reads the true rate directly from the slope.

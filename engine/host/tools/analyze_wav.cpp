@@ -106,12 +106,13 @@ void Run(const Wav& wav, deadaccurate::DspChain::AnalysisMode mode, const char* 
                 last.activeBph, last.detectedBph, last.rateValid ? 1 : 0, last.secPerDay,
                 last.beatErrorMs);
     if (mode == deadaccurate::DspChain::AnalysisMode::kCorrelation) {
-        std::printf("   band signature (score per 0.8-3k / 3-8k / 8-16k):\n");
+        std::printf("   band signature (score per 0.8-3k / 3-8k / 8-16k / 16-21.5k):\n");
         for (const int bph : {14400, 16200, 18000, 19800, 21600, 25200, 28800, 36000}) {
-            std::printf("     %5d: %5.1f %5.1f %5.1f\n", bph,
+            std::printf("     %5d: %5.1f %5.1f %5.1f %5.1f\n", bph,
                         chain.FoldingScoreForDebug(bph, 0),
                         chain.FoldingScoreForDebug(bph, 1),
-                        chain.FoldingScoreForDebug(bph, 2));
+                        chain.FoldingScoreForDebug(bph, 2),
+                        chain.FoldingScoreForDebug(bph, 3));
         }
     }
 }

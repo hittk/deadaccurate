@@ -2,3 +2,7 @@
 # Every line is enforced by RealRecordingTest — a DSP change that breaks a
 # recorded watch breaks the build. Catalogue: docs/05-movement-catalogue.md
 seiko_6r64_28800.wav 28800 0.6
+eta2824_28800.wav 28800 1.5
+longines_l844_25200.wav 25200 0.5
+seiko_nh34_21600.wav 21600 0.5
+seagull_st2533_21600.wav 21600 3.0

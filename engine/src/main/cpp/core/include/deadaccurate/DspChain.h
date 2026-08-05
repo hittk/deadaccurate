@@ -94,8 +94,10 @@ private:
     // ranges on different hardware (a real phone-mic recording put it at
     // 8-16 kHz with room noise below 3 kHz), and per-band folding keeps a
     // quiet band's ticks from being swamped by a loud band's noise.
+    // The 4th band exists because a real Seagull ST2533's tick energy
+    // peaks at 16-22 kHz — nearly ultrasonic.
     static constexpr double kCorrBandEdgesHz[FoldingAnalyzer::kChannels + 1] = {
-        800.0, 3000.0, 8000.0, 16000.0};
+        800.0, 3000.0, 8000.0, 16000.0, 21500.0};
     static constexpr double kAttackMs = 0.5;
     static constexpr double kReleaseMs = 5.0;
     static constexpr int kLevelFramesPerSecond = 30;

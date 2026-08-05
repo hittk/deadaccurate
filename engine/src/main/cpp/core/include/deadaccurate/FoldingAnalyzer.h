@@ -21,7 +21,7 @@ namespace deadaccurate {
 // scores every candidate rate in every channel, and locks on the best.
 class FoldingAnalyzer {
 public:
-    static constexpr int kChannels = 3;
+    static constexpr int kChannels = 4;
 
     struct Snapshot {
         int activeBph = 0;    // override or folding lock; 0 = searching
@@ -57,12 +57,16 @@ private:
 
     void AddBin();
     void EvaluateLock();
+    // Bins between the overload floor and now — what scoring may fold.
+    int64_t UsableBins() const;
     // Folds channel history at periodMs into `profile` (kScoreSlots wide);
     // returns false while there is too little history.
     bool FoldProfile(int channel, double periodMs,
                      std::array<double, 64>& profile) const;
     Score ScorePeriod(int bph) const;
+    // Max over the rate-offset grid for one channel.
     double ScoreChannel(int channel, double periodMs) const;
+    double ScoreChannelAt(int channel, double periodMs) const;
     // True when folding at twice the period shows a single peak — i.e. the
     // real beat period is 2x and this candidate is a half-period alias.
     bool HalfPeriodAlias(int channel, double periodMs) const;
@@ -80,6 +84,25 @@ private:
     // rates, which would otherwise inflate the fold profile's sigma and
     // suppress the score. 0.5 s is still 2.5x the longest beat period.
     static constexpr double kMeanSeconds = 0.5;
+    // Winsorization: a handling knock (placing the watch on the mic) is
+    // 1e2-1e5x the ambient bin energy, and folded at *any* period it
+    // forges a false peak for every candidate for the whole 30 s window —
+    // real recordings showed all 8 rates scoring above the lock threshold
+    // until the knock aged out. Centered bins are clipped to a multiple of
+    // a running |centered| scale (floored by a fraction of the running
+    // mean so it is sane from the first bin). Tick bins are only a few x
+    // the scale and periodic, so they survive; solitary knocks do not.
+    static constexpr float kClipScaleRatio = 12.0f;
+    static constexpr float kClipScaleFloor = 0.25f;
+    // A gross overload (a placement knock, orders of magnitude beyond the
+    // clip limit) means the acoustic setup itself changed — history from
+    // before it describes a different physical coupling and only slows the
+    // lock. A *solitary* overload floors the usable history just past the
+    // knock; recurring overloads (a strong-ticking watch overloads every
+    // beat) never advance the floor, so scoring cannot be starved.
+    static constexpr float kOverloadRatio = 30.0f;
+    static constexpr int kOverloadGuardBins = 1000;   // knock duration cover
+    static constexpr int kOverloadSpacingBins = 2000; // "solitary" = >2 s apart
 
     // --- fold scoring / lock ---
     // The fold profile is a per-slot MEAN, and ticks are narrower than a
@@ -100,6 +123,12 @@ private:
     // period is half the candidate (ticks every P/2): penalize it.
     static constexpr double kDoublePeakFraction = 0.55;
     static constexpr int kDoublePeakMinSlots = 20;
+    // A watch far off its nominal rate slides across the fold window (a
+    // +200 s/day movement drifts 69 ms over 30 s — 26 slots): score at
+    // several period offsets and take the best, so badly-off watches
+    // still lock. Offsets cover roughly ±260 s/day.
+    static constexpr double kScoreRateOffsets[5] = {-3.0e-3, -1.5e-3, 0.0,
+                                                    1.5e-3, 3.0e-3};
     // Half-period-alias veto: single-peak threshold for the 2x fold.
     static constexpr double kAliasSecondPeakFraction = 0.35;
     static constexpr double kAliasPenalty = 0.3;
@@ -128,11 +157,14 @@ private:
     // per-channel bin accumulation and centered-energy history (rings)
     std::array<float, kChannels> binSum_{};
     std::array<float, kChannels> runningMean_{};
+    std::array<float, kChannels> absScale_{};
     std::array<float, kChannels> lastCentered_{};
     std::array<std::vector<float>, kChannels> history_;
     int binFill_ = 0;
     int64_t binIndex_ = 0;
     int64_t historyCount_ = 0;
+    int64_t usableFloorBin_ = 0;
+    int64_t lastOverloadBin_ = -kOverloadSpacingBins - 1;
 
     // lock state
     int overrideBph_ = 0;
@@ -151,6 +183,7 @@ private:
 
     // phase history for the rate fit
     bool phaseStarted_ = false;
+    int lastPeakSlot_ = -1;
     double lastPhaseMs_ = 0.0;
     double unwrappedPhaseMs_ = 0.0;
     std::deque<std::pair<double, double>> phasePoints_;  // (tSec, unwrapped)

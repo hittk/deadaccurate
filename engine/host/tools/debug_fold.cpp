@@ -1,5 +1,6 @@
 // Scratch diagnostic: feed the synthetic low-SNR fixture straight into
 // FoldingAnalyzer and print per-channel scores over time.
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -74,10 +75,10 @@ int main(int argc, char** argv) {
         }
     }
 
-    const double edges[4] = {800, 3000, 8000, 16000};
+    const double edges[5] = {800, 3000, 8000, 16000, 21500};
     std::vector<SteepBandPassFilter> bands;
     std::vector<EnvelopeFollower> envs;
-    for (int c = 0; c < 3; ++c) {
+    for (int c = 0; c < 4; ++c) {
         bands.emplace_back(kFs, edges[c], edges[c + 1]);
         envs.emplace_back(kFs, 0.5, 5.0);
     }
@@ -85,16 +86,20 @@ int main(int argc, char** argv) {
     FoldingAnalyzer::Snapshot snap;
     int64_t i = 0;
     for (const float s : signal) {
-        float e[3];
-        for (int c = 0; c < 3; ++c) e[c] = std::fabs(bands[c].Process(s));
-        if (folding.Push(e, &snap) && (i / (kFs / 2)) % 10 == 0) {
-            std::printf("t=%5.1f active=%d det=%d | 21600: %4.1f %4.1f %4.1f | 28800: %4.1f %4.1f %4.1f | 43200x10800: %4.1f %4.1f\n",
-                        static_cast<double>(i) / kFs, snap.activeBph, snap.detectedBph,
-                        folding.ScoreForDebug(21600, 0), folding.ScoreForDebug(21600, 1),
-                        folding.ScoreForDebug(21600, 2),
-                        folding.ScoreForDebug(28800, 0), folding.ScoreForDebug(28800, 1),
-                        folding.ScoreForDebug(28800, 2),
-                        folding.ScoreForDebug(14400, 0), folding.ScoreForDebug(16200, 0));
+        float e[4];
+        for (int c = 0; c < 4; ++c) e[c] = std::fabs(bands[c].Process(s));
+        if (folding.Push(e, &snap) && (i / (kFs / 2)) % 4 == 0) {
+            static const int kRates[8] = {14400, 16200, 18000, 19800,
+                                          21600, 25200, 28800, 36000};
+            std::printf("t=%5.1f active=%5d det=%5d |", static_cast<double>(i) / kFs,
+                        snap.activeBph, snap.detectedBph);
+            for (const int r : kRates) {
+                double best = 0.0;
+                for (int c = 0; c < 4; ++c)
+                    best = std::max(best, folding.ScoreForDebug(r, c));
+                std::printf(" %d:%4.1f", r / 100, best);
+            }
+            std::printf("\n");
         }
         ++i;
     }

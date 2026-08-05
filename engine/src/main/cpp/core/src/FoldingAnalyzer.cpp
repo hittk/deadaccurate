@@ -112,6 +112,7 @@ bool FoldingAnalyzer::Push(const float* channelEnvelopes, Snapshot* out) {
 
 void FoldingAnalyzer::AddBin() {
     const auto binTimeMs = static_cast<double>(binIndex_) * binDurationMs_;
+    bool overloaded = false;
     for (int c = 0; c < kChannels; ++c) {
         const auto cs = static_cast<size_t>(c);
         const float value = binSum_[cs] / static_cast<float>(binSize_);
@@ -122,10 +123,29 @@ void FoldingAnalyzer::AddBin() {
         if (binIndex_ == 0) {
             runningMean_[cs] = value;
         }
-        runningMean_[cs] += meanAlpha_ * (value - runningMean_[cs]);
-        const float centered = value - runningMean_[cs];
+        // Winsorize against the running scale (see header): clip first,
+        // then update mean and scale from the clipped value — a knock can
+        // drag neither its own ceiling nor the mean (whose decay would
+        // otherwise leave a long negative tail after the knock), while a
+        // genuinely loud watch still adapts both within a few hundred bins.
+        const float scale =
+            std::max(absScale_[cs], kClipScaleFloor * runningMean_[cs]);
+        const float limit = kClipScaleRatio * std::max(scale, 1e-9f);
+        const float rawCentered = value - runningMean_[cs];
+        const float centered = std::clamp(rawCentered, -limit, limit);
+        runningMean_[cs] += meanAlpha_ * centered;
+        absScale_[cs] += meanAlpha_ * (std::fabs(centered) - absScale_[cs]);
+        overloaded = overloaded || rawCentered > kOverloadRatio * scale;
         lastCentered_[cs] = centered;
         history_[cs][static_cast<size_t>(binIndex_ % kWindowBins)] = centered;
+    }
+    if (overloaded) {
+        // Solitary gross overload = the acoustic coupling changed (see
+        // header): fold only what comes after it.
+        if (binIndex_ - lastOverloadBin_ > kOverloadSpacingBins) {
+            usableFloorBin_ = binIndex_ + kOverloadGuardBins;
+        }
+        lastOverloadBin_ = binIndex_;
     }
     ++historyCount_;
     ++binIndex_;
@@ -134,9 +154,14 @@ void FoldingAnalyzer::AddBin() {
     }
 }
 
+int64_t FoldingAnalyzer::UsableBins() const {
+    const int64_t available = std::min<int64_t>(historyCount_, kWindowBins);
+    return binIndex_ - std::max(binIndex_ - available, usableFloorBin_);
+}
+
 bool FoldingAnalyzer::FoldProfile(int channel, double periodMs,
                                   std::array<double, 64>& profile) const {
-    const int64_t available = std::min<int64_t>(historyCount_, kWindowBins);
+    const int64_t available = UsableBins();
     if (available < kMinScoreBins) {
         return false;
     }
@@ -160,6 +185,14 @@ bool FoldingAnalyzer::FoldProfile(int channel, double periodMs,
 }
 
 double FoldingAnalyzer::ScoreChannel(int channel, double periodMs) const {
+    double best = 0.0;
+    for (const double rel : kScoreRateOffsets) {
+        best = std::max(best, ScoreChannelAt(channel, periodMs * (1.0 + rel)));
+    }
+    return best;
+}
+
+double FoldingAnalyzer::ScoreChannelAt(int channel, double periodMs) const {
     std::array<double, kScoreSlots> profile{};
     if (!FoldProfile(channel, periodMs, profile)) {
         return 0.0;
@@ -225,6 +258,11 @@ bool FoldingAnalyzer::HalfPeriodAlias(int channel, double periodMs) const {
 }
 
 void FoldingAnalyzer::EvaluateLock() {
+    // Right after an overload floored the history there is nothing to
+    // score; freeze the lock state instead of reading silence as unlock.
+    if (UsableBins() < kMinScoreBins) {
+        return;
+    }
     Score best;
     Score runnerUp;
     for (const int bph : kStandardRatesBph) {
@@ -265,7 +303,7 @@ void FoldingAnalyzer::EvaluateLock() {
 
     // Pick (once per activation) the channel where the active period shows
     // best — profiles and phase tracking read that channel only.
-    if (activeBph_ > 0 && !channelChosen_ && historyCount_ >= kMinScoreBins) {
+    if (activeBph_ > 0 && !channelChosen_ && UsableBins() >= kMinScoreBins) {
         int bestChannel = 0;
         double bestScore = -1.0;
         for (int c = 0; c < kChannels; ++c) {
@@ -282,6 +320,7 @@ void FoldingAnalyzer::EvaluateLock() {
 }
 
 void FoldingAnalyzer::ResetProfiles() {
+    lastPeakSlot_ = -1;
     profileP_.fill(0.0);
     profile2P_.fill(0.0);
     profileBins_ = 0;
@@ -326,22 +365,45 @@ void FoldingAnalyzer::EstimatePhaseAndRate() {
     if (snapshot_.beatCount < kMinBeatsForPhase) {
         return;
     }
-    int peak = 0;
-    for (int k = 1; k < kProfileSlots; ++k) {
-        if (profileP_[static_cast<size_t>(k)] > profileP_[static_cast<size_t>(peak)]) {
-            peak = k;
-        }
-    }
     const auto at = [&](int k) {
         return profileP_[static_cast<size_t>(((k % kProfileSlots) + kProfileSlots) %
                                              kProfileSlots)];
     };
+    int globalPeak = 0;
+    for (int k = 1; k < kProfileSlots; ++k) {
+        if (at(k) > at(globalPeak)) {
+            globalPeak = k;
+        }
+    }
+    // Sticky peak: real drift moves the peak at most a slot or so per
+    // snapshot, but twin impulse humps and amplitude fades can make the
+    // global max hop across the profile, wrecking the phase series. Follow
+    // the tracked peak unless a distant one clearly dominates.
+    int peak = globalPeak;
+    if (phaseStarted_ && lastPeakSlot_ >= 0) {
+        int localPeak = lastPeakSlot_;
+        for (int d = -3; d <= 3; ++d) {
+            const int k = ((lastPeakSlot_ + d) % kProfileSlots + kProfileSlots) %
+                          kProfileSlots;
+            if (at(k) > at(localPeak)) {
+                localPeak = k;
+            }
+        }
+        const int dist = std::abs(globalPeak - localPeak);
+        const int circular = std::min(dist, kProfileSlots - dist);
+        if (circular > 3 && at(localPeak) > 0.0 &&
+            at(globalPeak) < 1.3 * at(localPeak)) {
+            peak = localPeak;
+        }
+    }
+    lastPeakSlot_ = peak;
     const double offset = ParabolicOffset(at(peak - 1), at(peak), at(peak + 1));
     const double slotMs = activePeriodMs_ / kProfileSlots;
     const double phaseMs = (peak + 0.5 + offset) * slotMs;
 
     if (!phaseStarted_) {
         phaseStarted_ = true;
+        lastPeakSlot_ = peak;
         lastPhaseMs_ = phaseMs;
         unwrappedPhaseMs_ = 0.0;
     } else {
@@ -383,9 +445,56 @@ void FoldingAnalyzer::EstimatePhaseAndRate() {
     if (var <= 0.0) {
         return;
     }
-    const double slopeMsPerSec = cov / var;
+    const double slope = cov / var;
+    const double intercept = meanPhi - slope * meanT;
+
+    // Robust refit: fades and residual peak hops leave outlier phase
+    // points; drop residuals beyond 3 sigma (MAD-estimated) and refit.
+    std::vector<double> absResiduals;
+    absResiduals.reserve(phasePoints_.size());
+    for (const auto& [t, phi] : phasePoints_) {
+        absResiduals.push_back(std::fabs(phi - (intercept + slope * t)));
+    }
+    std::vector<double> sorted = absResiduals;
+    const size_t mid = sorted.size() / 2;
+    std::nth_element(sorted.begin(), sorted.begin() + mid, sorted.end());
+    const double sigma = sorted[mid] * 1.4826;
+
+    double kMeanT = 0.0;
+    double kMeanPhi = 0.0;
+    size_t kept = 0;
+    {
+        size_t i = 0;
+        for (const auto& [t, phi] : phasePoints_) {
+            if (sigma <= 0.0 || absResiduals[i] <= 3.0 * sigma) {
+                kMeanT += t;
+                kMeanPhi += phi;
+                ++kept;
+            }
+            ++i;
+        }
+    }
+    double usedSlope = slope;
+    if (kept >= static_cast<size_t>(kMinRatePoints)) {
+        kMeanT /= static_cast<double>(kept);
+        kMeanPhi /= static_cast<double>(kept);
+        double kCov = 0.0;
+        double kVar = 0.0;
+        size_t i = 0;
+        for (const auto& [t, phi] : phasePoints_) {
+            if (sigma <= 0.0 || absResiduals[i] <= 3.0 * sigma) {
+                kCov += (t - kMeanT) * (phi - kMeanPhi);
+                kVar += (t - kMeanT) * (t - kMeanT);
+            }
+            ++i;
+        }
+        if (kVar > 0.0) {
+            usedSlope = kCov / kVar;
+        }
+    }
+
     snapshot_.rateValid = true;
-    snapshot_.secPerDay = static_cast<float>(-slopeMsPerSec * kSecondsPerDayPerMsPerSec);
+    snapshot_.secPerDay = static_cast<float>(-usedSlope * kSecondsPerDayPerMsPerSec);
 }
 
 void FoldingAnalyzer::EstimateBeatError() {
