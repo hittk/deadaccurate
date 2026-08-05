@@ -7,6 +7,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -122,28 +124,37 @@ internal fun CaptureContent(
     actions: CaptureActions,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        BrandHeader(
-            capturing = state.capturing,
-            startEnabled = true,
-            onToggleCapture = actions.onToggleCapture,
-        )
-        NavTabs(
-            selected = if (state.showWatchLog) AppTab.WATCH_LOG else AppTab.MEASURE,
-            onSelect = { actions.watchLog.onShowWatchLog(it == AppTab.WATCH_LOG) },
-        )
-        if (state.showWatchLog) {
-            WatchLogScreen(
-                watches = state.watches,
-                onUpdateWatch = actions.watchLog.onUpdateWatch,
-                onDeleteWatch = actions.watchLog.onDeleteWatch,
+        // Adaptive layout: wide windows (landscape phones, tablets either
+        // way) get two panes; a tablet-sized window gets roomier panels.
+        val twoPane = maxWidth >= 600.dp
+        val tablet = (if (maxWidth < maxHeight) maxWidth else maxHeight) >= 600.dp
+        Column(modifier = Modifier.fillMaxSize()) {
+            BrandHeader(
+                capturing = state.capturing,
+                startEnabled = true,
+                onToggleCapture = actions.onToggleCapture,
             )
-        } else {
-            MeasureContent(state, actions)
+            NavTabs(
+                selected = if (state.showWatchLog) AppTab.WATCH_LOG else AppTab.MEASURE,
+                onSelect = { actions.watchLog.onShowWatchLog(it == AppTab.WATCH_LOG) },
+            )
+            Box(modifier = Modifier.weight(1f)) {
+                if (state.showWatchLog) {
+                    WatchLogScreen(
+                        watches = state.watches,
+                        onUpdateWatch = actions.watchLog.onUpdateWatch,
+                        onDeleteWatch = actions.watchLog.onDeleteWatch,
+                        twoPane = twoPane,
+                    )
+                } else {
+                    MeasureContent(state, actions, twoPane = twoPane, tablet = tablet)
+                }
+            }
         }
     }
     // Hosted at screen level so stopping the test surfaces the popup no
@@ -159,47 +170,87 @@ internal fun CaptureContent(
 }
 
 @Composable
-private fun MeasureContent(state: TimegrapherUiState, actions: CaptureActions) {
-    StatusStrip(state)
-    Column(
-        modifier = Modifier
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        ResultActions(state, actions.watchLog)
-        StatCardsGrid(state)
-        TracePanel(state)
-        SignalPanel(state)
+private fun MeasureContent(
+    state: TimegrapherUiState,
+    actions: CaptureActions,
+    twoPane: Boolean,
+    tablet: Boolean,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        StatusStrip(state)
+        if (twoPane) {
+            // Instrument and controls on the left; the tape and signal on
+            // the right where the width is.
+            Row(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    ResultActions(state, actions.watchLog)
+                    StatCardsGrid(state)
+                    MeasureControls(state, actions)
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(if (tablet) 1.4f else 1.1f)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    TracePanel(state, traceHeight = if (tablet) 300.dp else 180.dp)
+                    SignalPanel(state)
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                ResultActions(state, actions.watchLog)
+                StatCardsGrid(state)
+                TracePanel(state)
+                SignalPanel(state)
+                MeasureControls(state, actions)
+            }
+        }
+    }
+}
 
-        SectionLabel("BEAT RATE")
-        RateSelector(
-            overrideBph = state.bphOverride,
-            detectedBph = state.detectedBph,
-            onSelect = actions.onSetBphOverride,
+@Composable
+private fun MeasureControls(state: TimegrapherUiState, actions: CaptureActions) {
+    SectionLabel("BEAT RATE")
+    RateSelector(
+        overrideBph = state.bphOverride,
+        detectedBph = state.detectedBph,
+        onSelect = actions.onSetBphOverride,
+    )
+    if (state.overrideDisagrees) {
+        Text(
+            "The signal looks like ${state.detectedBph} bph, not the " +
+                "pinned ${state.bphOverride}. Tap Auto to trust the signal.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
         )
-        if (state.overrideDisagrees) {
-            Text(
-                "The signal looks like ${state.detectedBph} bph, not the " +
-                    "pinned ${state.bphOverride}. Tap Auto to trust the signal.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
+    }
 
-        SectionLabel("ANALYSIS MODE")
-        AnalysisModeSelector(mode = state.analysisMode, onSelect = actions.onSetAnalysisMode)
+    SectionLabel("ANALYSIS MODE")
+    AnalysisModeSelector(mode = state.analysisMode, onSelect = actions.onSetAnalysisMode)
 
-        SectionLabel("LIFT ANGLE")
-        LiftAngleControl(state.liftAngleDeg, actions.onSetLiftAngle)
+    SectionLabel("LIFT ANGLE")
+    LiftAngleControl(state.liftAngleDeg, actions.onSetLiftAngle)
 
-        AdvancedSection(state, actions)
+    AdvancedSection(state, actions)
 
-        // Informational messages live below the instrument, out of the way.
-        Notices(state, actions.onDismissInputLost)
-        if (!state.onboardingDismissed) {
-            OnboardingCard(onDismiss = actions.onDismissOnboarding)
-        }
+    // Informational messages live below the instrument, out of the way.
+    Notices(state, actions.onDismissInputLost)
+    if (!state.onboardingDismissed) {
+        OnboardingCard(onDismiss = actions.onDismissOnboarding)
     }
 }
 

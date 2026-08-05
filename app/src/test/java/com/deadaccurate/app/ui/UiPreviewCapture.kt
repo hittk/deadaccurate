@@ -90,6 +90,83 @@ class UiPreviewCapture {
     }
 
     @Test
+    @Config(sdk = [34], qualifiers = "w840dp-h400dp-land-xhdpi")
+    fun measureScreenLandscape() {
+        val trace = List(300) { i ->
+            TracePoint(
+                deviationMs = (sin(i / 18f) * 6f) + (i % 7 - 3) * 0.4f,
+                accepted = true,
+            )
+        }
+        render("measure-landscape.png", 1680, 800) {
+            CaptureContent(
+                state = TimegrapherUiState(
+                    hasPermission = true,
+                    capturing = true,
+                    rateValid = true,
+                    secPerDay = 3.1f,
+                    beatErrorMs = 0.4f,
+                    activeBph = 21600,
+                    detectedBph = 21600,
+                    rateLocked = true,
+                    rateTickCount = 412,
+                    rmsDb = -47f,
+                    peakDb = -38f,
+                    gateThresholdDb = -52f,
+                    gateOpen = true,
+                    amplitudeDeg = 271f,
+                    liftTimeMs = 8.6f,
+                    tracePoints = trace,
+                    traceHalfRangeMs = 83f,
+                ),
+                actions = previewActions(),
+            )
+        }
+    }
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w1100dp-h700dp-xhdpi")
+    fun watchLogTablet() {
+        val now = 1_754_300_000_000
+        fun m(daysAgo: Int, rate: Float, be: Float) = Measurement(
+            timestampMs = now - daysAgo * 86_400_000L,
+            bph = 21600,
+            secPerDay = rate,
+            beatErrorMs = be,
+            mode = "CORRELATION",
+            bandScores = emptyList(),
+        )
+        render("watchlog-tablet.png", 2200, 1400) {
+            CaptureContent(
+                state = TimegrapherUiState(
+                    hasPermission = true,
+                    showWatchLog = true,
+                    watches = listOf(
+                        WatchEntry(
+                            id = "1",
+                            name = "Blizzard",
+                            movementRef = "NH34",
+                            measurements = listOf(
+                                m(0, -2.1f, 0.2f),
+                                m(3, -2.8f, 0.3f),
+                                m(9, -1.4f, 0.2f),
+                                m(15, -3.9f, 0.4f),
+                            ),
+                        ),
+                        WatchEntry(
+                            id = "2",
+                            name = "Seagull Tourbillon",
+                            movementRef = "ST2533",
+                            measurements = listOf(m(1, 202.4f, 0.7f), m(6, 198.9f, 0.9f)),
+                        ),
+                    ),
+                ),
+                actions = previewActions(),
+            )
+        }
+    }
+
+    @Test
     fun watchLogScreen() {
         val now = 1_754_300_000_000
         fun m(daysAgo: Int, rate: Float, be: Float) = Measurement(

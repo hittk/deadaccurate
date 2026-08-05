@@ -1,5 +1,6 @@
 package com.deadaccurate.app.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -51,51 +52,35 @@ fun WatchLogScreen(
     onUpdateWatch: (String, String, String) -> Unit,
     onDeleteWatch: (String) -> Unit,
     modifier: Modifier = Modifier,
+    twoPane: Boolean = false,
 ) {
     var allReadingsTab by rememberSaveable { mutableStateOf(false) }
     var detailWatchId by rememberSaveable { mutableStateOf<String?>(null) }
     var editWatchId by rememberSaveable { mutableStateOf<String?>(null) }
-    val detailWatch = watches.find { it.id == detailWatchId }
     val editWatch = watches.find { it.id == editWatchId }
 
-    Column(
-        modifier = modifier
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        if (detailWatch != null) {
-            WatchDetail(
-                watch = detailWatch,
-                onBack = { detailWatchId = null },
-                onEdit = { editWatchId = detailWatch.id },
-            )
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = !allReadingsTab,
-                    onClick = { allReadingsTab = false },
-                    label = { Text("By watch") },
-                )
-                FilterChip(
-                    selected = allReadingsTab,
-                    onClick = { allReadingsTab = true },
-                    label = { Text("All readings") },
-                )
-            }
-            when {
-                watches.isEmpty() -> EmptyLog()
-                allReadingsTab -> AllReadingsList(watches)
-                else -> watches.forEach { watch ->
-                    WatchCard(
-                        watch = watch,
-                        onOpen = { detailWatchId = watch.id },
-                        onEdit = { editWatchId = watch.id },
-                        onDelete = { onDeleteWatch(watch.id) },
-                    )
-                }
-            }
-        }
+    if (twoPane) {
+        TwoPaneLog(
+            watches = watches,
+            allReadingsTab = allReadingsTab,
+            onSelectTab = { allReadingsTab = it },
+            selectedId = detailWatchId,
+            onSelectWatch = { detailWatchId = it },
+            onEditWatch = { editWatchId = it },
+            onDeleteWatch = onDeleteWatch,
+            modifier = modifier,
+        )
+    } else {
+        SinglePaneLog(
+            watches = watches,
+            allReadingsTab = allReadingsTab,
+            onSelectTab = { allReadingsTab = it },
+            detailWatch = watches.find { it.id == detailWatchId },
+            onSelectWatch = { detailWatchId = it },
+            onEditWatch = { editWatchId = it },
+            onDeleteWatch = onDeleteWatch,
+            modifier = modifier,
+        )
     }
 
     editWatch?.let { watch ->
@@ -106,6 +91,127 @@ fun WatchLogScreen(
                 editWatchId = null
             },
             onDismiss = { editWatchId = null },
+        )
+    }
+}
+
+@Composable
+private fun SinglePaneLog(
+    watches: List<WatchEntry>,
+    allReadingsTab: Boolean,
+    onSelectTab: (Boolean) -> Unit,
+    detailWatch: WatchEntry?,
+    onSelectWatch: (String?) -> Unit,
+    onEditWatch: (String) -> Unit,
+    onDeleteWatch: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (detailWatch != null) {
+            WatchDetail(
+                watch = detailWatch,
+                onBack = { onSelectWatch(null) },
+                onEdit = { onEditWatch(detailWatch.id) },
+            )
+        } else {
+            LogTabs(allReadingsTab, onSelectTab)
+            when {
+                watches.isEmpty() -> EmptyLog()
+                allReadingsTab -> AllReadingsList(watches)
+                else -> watches.forEach { watch ->
+                    WatchCard(
+                        watch = watch,
+                        onOpen = { onSelectWatch(watch.id) },
+                        onEdit = { onEditWatch(watch.id) },
+                        onDelete = { onDeleteWatch(watch.id) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Tablet/landscape master-detail: the watch list stays on the left, the
+ * selected watch's full history (or the all-readings feed) on the right.
+ */
+@Composable
+private fun TwoPaneLog(
+    watches: List<WatchEntry>,
+    allReadingsTab: Boolean,
+    onSelectTab: (Boolean) -> Unit,
+    selectedId: String?,
+    onSelectWatch: (String) -> Unit,
+    onEditWatch: (String) -> Unit,
+    onDeleteWatch: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val selected = watches.find { it.id == selectedId } ?: watches.firstOrNull()
+    Row(
+        modifier = modifier.padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(0.45f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            LogTabs(allReadingsTab, onSelectTab)
+            if (watches.isEmpty()) {
+                EmptyLog()
+            } else {
+                watches.forEach { watch ->
+                    WatchCard(
+                        watch = watch,
+                        onOpen = { onSelectWatch(watch.id) },
+                        onEdit = { onEditWatch(watch.id) },
+                        onDelete = { onDeleteWatch(watch.id) },
+                        selected = !allReadingsTab && watch.id == selected?.id,
+                    )
+                }
+            }
+        }
+        Column(
+            modifier = Modifier
+                .weight(0.55f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            when {
+                allReadingsTab -> AllReadingsList(watches)
+                selected != null -> WatchDetail(
+                    watch = selected,
+                    onBack = null,
+                    onEdit = { onEditWatch(selected.id) },
+                )
+                else -> Text(
+                    "Save a measurement to see its history here.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LogTabs(allReadingsTab: Boolean, onSelectTab: (Boolean) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(
+            selected = !allReadingsTab,
+            onClick = { onSelectTab(false) },
+            label = { Text("By watch") },
+        )
+        FilterChip(
+            selected = allReadingsTab,
+            onClick = { onSelectTab(true) },
+            label = { Text("All readings") },
         )
     }
 }
@@ -128,10 +234,12 @@ private fun WatchCard(
     onOpen: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    selected: Boolean = false,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(10.dp),
+        border = if (selected) BorderStroke(1.dp, Gold) else null,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onOpen),
@@ -176,14 +284,14 @@ private fun WatchCard(
 @Composable
 private fun WatchDetail(
     watch: WatchEntry,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     onEdit: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TextButton(onClick = onBack) { Text("‹ Back") }
+        onBack?.let { TextButton(onClick = it) { Text("‹ Back") } }
         Text(
             watch.name,
             style = MaterialTheme.typography.titleLarge,

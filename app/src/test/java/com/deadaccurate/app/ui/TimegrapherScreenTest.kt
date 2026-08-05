@@ -331,6 +331,66 @@ class TimegrapherScreenTest {
     }
 
     @Test
+    @Config(sdk = [34], qualifiers = "w840dp-h400dp-land")
+    fun landscapeShowsTwoPaneMeasureLayout() {
+        setCapture(
+            TimegrapherUiState(
+                hasPermission = true,
+                capturing = true,
+                rateValid = true,
+                secPerDay = 4.2f,
+                activeBph = 28800,
+                detectedBph = 28800,
+                rateTickCount = 100,
+            ),
+        )
+        // Both panes render: instrument cards on the left, tape on the right.
+        compose.onNodeWithText("+4.2").assertExists()
+        compose.onNodeWithText("TIMING DEVIATION").assertExists()
+        compose.onNodeWithText("SIGNAL LEVEL").assertExists()
+    }
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w1100dp-h700dp")
+    fun tabletWatchLogShowsMasterDetail() {
+        setCapture(
+            TimegrapherUiState(
+                hasPermission = true,
+                showWatchLog = true,
+                watches = listOf(
+                    com.deadaccurate.app.watchlog.WatchEntry(
+                        id = "w1",
+                        name = "Blizzard",
+                        movementRef = "NH34",
+                        measurements = listOf(
+                            com.deadaccurate.app.watchlog.Measurement(
+                                timestampMs = 1_722_800_000_000,
+                                bph = 21600,
+                                secPerDay = -2.3f,
+                                beatErrorMs = 0.2f,
+                                mode = "CORRELATION",
+                                bandScores = emptyList(),
+                            ),
+                            com.deadaccurate.app.watchlog.Measurement(
+                                timestampMs = 1_722_700_000_000,
+                                bph = 21600,
+                                secPerDay = -2.9f,
+                                beatErrorMs = 0.3f,
+                                mode = "CORRELATION",
+                                bandScores = emptyList(),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        // Master list and detail render side by side: the first watch is
+        // auto-selected and its trend panel appears without any tap.
+        compose.onNodeWithText("RATE TREND").assertExists()
+        compose.onAllNodesWithText("Blizzard").onFirst().assertExists()
+    }
+
+    @Test
     fun watchLogDialogListsHistory() {
         setCapture(
             TimegrapherUiState(

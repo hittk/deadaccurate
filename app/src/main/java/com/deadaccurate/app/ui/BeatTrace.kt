@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.deadaccurate.app.TimegrapherUiState
 import com.deadaccurate.app.trace.TracePoint
@@ -26,6 +27,7 @@ fun BeatTrace(
     points: List<TracePoint>,
     halfRangeMs: Float,
     modifier: Modifier = Modifier,
+    traceHeight: Dp = 110.dp,
 ) {
     val dotColor = MaterialTheme.colorScheme.primary
     val rejectedColor = MaterialTheme.colorScheme.outlineVariant
@@ -35,7 +37,7 @@ fun BeatTrace(
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(110.dp)
+            .height(traceHeight)
             .background(background, RoundedCornerShape(12.dp)),
     ) {
         val midY = size.height / 2f

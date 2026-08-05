@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.deadaccurate.app.TimegrapherUiState
@@ -274,10 +275,14 @@ fun PanelCard(
 
 /** The main tape, with the idle placeholder from the design. */
 @Composable
-fun TracePanel(state: TimegrapherUiState) {
+fun TracePanel(state: TimegrapherUiState, traceHeight: Dp = 110.dp) {
     PanelCard(label = "TIMING DEVIATION") {
         Box(contentAlignment = Alignment.Center) {
-            BeatTrace(points = state.tracePoints, halfRangeMs = state.traceHalfRangeMs)
+            BeatTrace(
+                points = state.tracePoints,
+                halfRangeMs = state.traceHalfRangeMs,
+                traceHeight = traceHeight,
+            )
             if (state.tracePoints.isEmpty()) {
                 Text(
                     if (state.capturing) "LISTENING…" else "PRESS START TO BEGIN",
