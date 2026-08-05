@@ -12,8 +12,8 @@ android {
         applicationId = "com.deadaccurate.app"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 15
-        versionName = "0.4.3"
+        versionCode = 16
+        versionName = "0.4.4"
     }
 
     // One committed keystore signs every build type in every environment

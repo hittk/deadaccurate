@@ -108,6 +108,12 @@ data class TimegrapherUiState(
     val measurementSettled: Boolean = false,
     /** Live movement recognition while measuring ("Sounds like a NH34"). */
     val movementGuess: MovementGuesser.Guess? = null,
+    /**
+     * The always-running folding engine's lock, for the edge-mode hint:
+     * when edge detection hears nothing but this is set, the signal is
+     * measurable — just not by per-tick gating. 0 = no lock.
+     */
+    val correlationHintBph: Int = 0,
     /** Balance amplitude; null while the tick micro-structure is unresolved. */
     val amplitudeDeg: Float? = null,
     val liftTimeMs: Float? = null,
@@ -387,6 +393,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 streamInfo = null,
                 measurementSettled = false,
                 movementGuess = null,
+                correlationHintBph = 0,
                 amplitudeDeg = null,
                 liftTimeMs = null,
                 showSaveDialog = false,
@@ -454,6 +461,7 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                 streamInfo = null,
                 measurementSettled = false,
                 movementGuess = null,
+                correlationHintBph = 0,
                 amplitudeDeg = null,
                 liftTimeMs = null,
             )
@@ -668,8 +676,11 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         lastSignature = event.bandScores
         lastSignatureBph = event.bph
         val guess = MovementGuesser.guess(event.bph, event.bandScores, watchLog.watches.value)
-        if (guess != _uiState.value.movementGuess) {
-            _uiState.update { it.copy(movementGuess = guess) }
+        val state = _uiState.value
+        if (guess != state.movementGuess || event.bph != state.correlationHintBph) {
+            _uiState.update {
+                it.copy(movementGuess = guess, correlationHintBph = event.bph)
+            }
         }
     }
 

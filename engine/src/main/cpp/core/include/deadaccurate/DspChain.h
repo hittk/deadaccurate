@@ -115,7 +115,7 @@ private:
     void EmitAmplitudeFrame(Output& out, int bph);
 
     static constexpr double kBandLowHz = 2000.0;
-    static constexpr double kBandHighHz = 12000.0;
+    static constexpr double kBandHighHz = 21500.0;
     // The correlation path listens in bands: tick energy lands in different
     // ranges on different hardware (a real phone-mic recording put it at
     // 8-16 kHz with room noise below 3 kHz), and per-band folding keeps a

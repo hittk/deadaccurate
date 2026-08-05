@@ -259,6 +259,29 @@ class TimegrapherScreenTest {
     }
 
     @Test
+    fun edgeModeSuggestsCorrelationWhenFoldingHearsARate() {
+        var switched = false
+        setCapture(
+            TimegrapherUiState(
+                hasPermission = true,
+                capturing = true,
+                analysisMode = com.deadaccurate.app.settings.AnalysisMode.EDGE,
+                rateLocked = false,
+                correlationHintBph = 21600,
+            ),
+            actions(onSetAnalysisMode = {
+                switched = it == com.deadaccurate.app.settings.AnalysisMode.CORRELATION
+            }),
+        )
+        compose.onNodeWithText(
+            "Ticks are too faint for edge detection, but the correlation " +
+                "engine hears 21600 bph.",
+        ).assertExists()
+        compose.onNodeWithText("Switch to correlation mode").performClick()
+        assertTrue(switched)
+    }
+
+    @Test
     fun settledMeasurementOffersToSave() {
         setCapture(
             TimegrapherUiState(

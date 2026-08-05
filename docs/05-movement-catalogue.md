@@ -31,6 +31,19 @@ after which the build fails if any DSP change ever breaks that watch.
 | `seiko_nh34_21600.wav` | Seiko NH34 GMT | locks 21,600 in ~17 s, rate ≈ −1.4 s/d (edge mode agrees: −3.3), beat error ≈ 0.1 ms | ✅ confirmed. Also locks in edge mode — the loudest, cleanest recording of the batch. Two placement knocks (t≈3.7 s, 300× ambient at t≈7.3 s) each re-floor the usable history, hence the later lock. |
 | `seagull_st2533_21600.wav` | Seagull ST2533 | locks 21,600 in ~4 s (band 3, 16–21.5 kHz — nearly ultrasonic tick energy), rate ≈ **+200 s/d**, beat error noisy ≈ 0.7–2 ms | ✅ rate identified, ⚠️ the watch itself is running ~200 s/day fast — coherent across bands and confirmed by offline analysis, not a measurement artifact. Typical of a magnetized hairspring or a movement overdue for service. This watch motivated both the 4th analysis band and the rate-offset-tolerant scoring. |
 
+## Piezo session findings (first contact-mic field test)
+
+- NH34 and NH35 movements measure well in edge mode on the piezo.
+- The ST2533 does **not** produce edge-detectable ticks even on contact
+  (fixture `seagull_st2533_piezo_21600.wav`): its faint, high-frequency
+  ticks reach only ~48 gate crossings a minute. Correlation mode locks
+  the same recording in ~4 s at +200.8 s/d — matching the phone-mic
+  measurement, so the mode switch (which the app now suggests
+  automatically) is the answer for this calibre, not more coupling.
+- The edge band-pass top moved 12 kHz → 21.5 kHz: the ST2533's energy
+  sits at 16-22 kHz, and the wider band also raised the NH34's edge
+  tick yield by ~50% with an unchanged rate reading.
+
 ## In-app watch log and movement recognition
 
 Since 0.3.6 the app closes this loop itself: when a measurement settles

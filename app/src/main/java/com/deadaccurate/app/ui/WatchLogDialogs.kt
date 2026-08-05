@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.deadaccurate.app.PendingResult
 import com.deadaccurate.app.TimegrapherUiState
+import com.deadaccurate.app.settings.AnalysisMode
 import com.deadaccurate.app.watchlog.WatchEntry
 
 /**
@@ -36,7 +37,11 @@ import com.deadaccurate.app.watchlog.WatchEntry
  * like…" recognition line, and the settled banner.
  */
 @Composable
-internal fun ResultActions(state: TimegrapherUiState, watchLog: WatchLogActions) {
+internal fun ResultActions(
+    state: TimegrapherUiState,
+    watchLog: WatchLogActions,
+    onSwitchToCorrelation: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -47,6 +52,23 @@ internal fun ResultActions(state: TimegrapherUiState, watchLog: WatchLogActions)
             enabled = state.rateValid,
         ) {
             Text(if (state.measurementSettled) "Save result ✓" else "Save result")
+        }
+    }
+    // Field lesson from a real piezo session: some movements are too faint
+    // for per-tick gating even on contact — but the folding engine (always
+    // running) still locks them. Say so instead of looking dead.
+    val edgeDeafButFoldingLocked =
+        state.capturing && !state.rateLocked &&
+            state.correlationHintBph > 0 && state.analysisMode == AnalysisMode.EDGE
+    if (edgeDeafButFoldingLocked) {
+        Text(
+            "Ticks are too faint for edge detection, but the correlation " +
+                "engine hears ${state.correlationHintBph} bph.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        TextButton(onClick = onSwitchToCorrelation) {
+            Text("Switch to correlation mode")
         }
     }
     // Live recognition while the test runs; the popup itself waits for Stop.

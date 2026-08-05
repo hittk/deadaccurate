@@ -15,7 +15,10 @@ Every stage is plain C++, deterministic, and host-testable on WAV fixtures.
 Watch tick transients carry most of their energy in the low-to-mid kHz range,
 while room noise (voices, HVAC, handling rumble) dominates below ~1 kHz and
 piezo resonance can spike high. A 4th-order Butterworth band-pass (biquad
-cascade) at roughly **2–12 kHz** strips both ends. Corner frequencies are
+cascade) at roughly **2–21.5 kHz** strips both ends. (Originally 2–12 kHz;
+a real Seagull ST2533 puts its tick energy at 16–22 kHz, and widening the
+top also improved tick yield on Seiko movements without hurting any
+fixture.) Corner frequencies are
 compile-time constants for v1 but kept in one place — the piezo rig's real
 response may justify tuning after hardware testing.
 

@@ -40,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.deadaccurate.app.TimegrapherUiState
 import com.deadaccurate.app.TimegrapherViewModel
+import com.deadaccurate.app.settings.AnalysisMode
 import com.deadaccurate.app.settings.InputPreference
 
 @Composable
@@ -191,7 +192,9 @@ private fun MeasureContent(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    ResultActions(state, actions.watchLog)
+                    ResultActions(state, actions.watchLog) {
+                        actions.onSetAnalysisMode(AnalysisMode.CORRELATION)
+                    }
                     StatCardsGrid(state)
                     MeasureControls(state, actions)
                 }
@@ -212,7 +215,9 @@ private fun MeasureContent(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                ResultActions(state, actions.watchLog)
+                ResultActions(state, actions.watchLog) {
+                    actions.onSetAnalysisMode(AnalysisMode.CORRELATION)
+                }
                 StatCardsGrid(state)
                 TracePanel(state)
                 SignalPanel(state)

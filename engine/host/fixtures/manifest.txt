@@ -6,3 +6,4 @@ eta2824_28800.wav 28800 1.5
 longines_l844_25200.wav 25200 0.5
 seiko_nh34_21600.wav 21600 0.5
 seagull_st2533_21600.wav 21600 3.0
+seagull_st2533_piezo_21600.wav 21600 2.0
