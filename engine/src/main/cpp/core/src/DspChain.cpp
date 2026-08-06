@@ -113,7 +113,8 @@ void DspChain::Process(const float* samples, size_t count, Output& out) {
             if (snapshot.activeBph > 0) {
                 SignatureFrame sig{snapshot.activeBph, {}};
                 for (int c = 0; c < FoldingAnalyzer::kChannels; ++c) {
-                    sig.bandScores[c] = snapshot.bandScores[static_cast<size_t>(c)];
+                    sig.bandEnergies[c] =
+                        snapshot.bandEnergies[static_cast<size_t>(c)];
                 }
                 out.signatures.push_back(sig);
             }

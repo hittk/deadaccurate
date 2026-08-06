@@ -192,7 +192,7 @@ void CaptureEngine::DspLoop() {
             events_.Push(MakePhaseEvent(phase.phaseDeviationMs, phase.periodMs));
         }
         for (const auto& sig : output.signatures) {
-            events_.Push(MakeSignatureEvent(sig.bph, sig.bandScores,
+            events_.Push(MakeSignatureEvent(sig.bph, sig.bandEnergies,
                                             FoldingAnalyzer::kChannels));
         }
         for (const auto& amp : output.amplitudes) {

@@ -104,7 +104,7 @@ Java_com_deadaccurate_engine_ReplayEngine_nativeProcess(JNIEnv* env, jobject /*t
     }
     for (const auto& sig : session->output.signatures) {
         events.push_back(deadaccurate::MakeSignatureEvent(
-            sig.bph, sig.bandScores, deadaccurate::FoldingAnalyzer::kChannels));
+            sig.bph, sig.bandEnergies, deadaccurate::FoldingAnalyzer::kChannels));
     }
     for (const auto& amp : session->output.amplitudes) {
         events.push_back(deadaccurate::MakeAmplitudeEvent(amp.valid, amp.amplitudeDeg,

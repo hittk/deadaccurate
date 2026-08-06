@@ -50,10 +50,18 @@ Since 0.3.6 the app closes this loop itself: when a measurement settles
 (16 consecutive valid readings spanning ≤ 0.8 s/day), a popup shows the
 rate and beat error and offers to save them against a named watch. Each
 save stores the acoustic signature (per-band fold scores) alongside the
-numbers; labeling the watch's movement teaches the recognizer, and later
-measurements of a same-rate watch are matched by cosine similarity of
-their signatures ("Sounds like a NH35"). The log lives on-device in
-`watch_log.json` and tracks each watch's numbers over time.
+numbers; labeling the watch's movement teaches the recognizer. Since
+0.4.5 the fingerprint is the *distribution* of folded tick energy across
+the four analysis bands (energies, not SNR scores — a score divides by
+the noise floor and fingerprints the room), matched by Bhattacharyya
+coefficient at a 0.99 bar with an ambiguity margin, and only ever
+against signatures captured on the same input. That last rule came from
+measurement: the same ST2533 through the piezo matched its own phone-mic
+signature *worse* (BC 0.87-0.91) than the NH34 matched the ST2533 within
+one input (0.93-0.95), while same-movement halves agree at >= 0.993.
+Pre-0.4.5 saves carried score-based signatures and no longer teach the
+recognizer — a couple of fresh labeled saves per watch per input rebuild
+its knowledge. The log lives on-device in `watch_log.json`.
 
 ## Intake procedure
 

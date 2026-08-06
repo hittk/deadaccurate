@@ -57,7 +57,9 @@ data class PendingResult(
     val amplitudeDeg: Float?,
     val mode: AnalysisMode,
     /** Acoustic signature captured with the result; teaches the guesser. */
-    val bandScores: List<Float>,
+    val bandEnergies: List<Float>,
+    /** Which input heard it ("wired" / "built-in" / "replay"). */
+    val input: String,
     val guess: MovementGuesser.Guess?,
 )
 
@@ -673,14 +675,30 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
 
     /** ~2 Hz acoustic signature: feeds the live "Sounds like…" guess. */
     private fun onSignature(event: EngineEvent.Signature) {
-        lastSignature = event.bandScores
+        lastSignature = event.bandEnergies
         lastSignatureBph = event.bph
-        val guess = MovementGuesser.guess(event.bph, event.bandScores, watchLog.watches.value)
+        val guess = MovementGuesser.guess(
+            bph = event.bph,
+            input = currentInput(),
+            bandEnergies = event.bandEnergies,
+            watches = watchLog.watches.value,
+        )
         val state = _uiState.value
         if (guess != state.movementGuess || event.bph != state.correlationHintBph) {
             _uiState.update {
                 it.copy(movementGuess = guess, correlationHintBph = event.bph)
             }
+        }
+    }
+
+    /** "wired" / "built-in" / "replay" — recognition partitions by this. */
+    private fun currentInput(): String {
+        val state = _uiState.value
+        return when {
+            state.replayFileName != null -> "replay"
+            state.wiredInputName != null &&
+                state.inputPreference != InputPreference.BUILT_IN -> "wired"
+            else -> "built-in"
         }
     }
 
@@ -690,15 +708,22 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
         if (!state.rateValid || state.activeBph == 0) return null
         // The signature is only meaningful if the folding path agrees on
         // the rate being displayed (it always runs, in either mode).
-        val scores = if (lastSignatureBph == state.activeBph) lastSignature else emptyList()
+        val energies = if (lastSignatureBph == state.activeBph) lastSignature else emptyList()
+        val input = currentInput()
         return PendingResult(
             bph = state.activeBph,
             secPerDay = state.correctedSecPerDay,
             beatErrorMs = state.beatErrorMs,
             amplitudeDeg = state.amplitudeDeg,
             mode = state.analysisMode,
-            bandScores = scores,
-            guess = MovementGuesser.guess(state.activeBph, scores, watchLog.watches.value),
+            bandEnergies = energies,
+            input = input,
+            guess = MovementGuesser.guess(
+                bph = state.activeBph,
+                input = input,
+                bandEnergies = energies,
+                watches = watchLog.watches.value,
+            ),
         )
     }
 
@@ -731,7 +756,8 @@ class TimegrapherViewModel(application: Application) : AndroidViewModel(applicat
                     beatErrorMs = pending.beatErrorMs,
                     amplitudeDeg = pending.amplitudeDeg,
                     mode = pending.mode.name,
-                    bandScores = pending.bandScores,
+                    bandEnergies = pending.bandEnergies,
+                    input = pending.input,
                 ),
             )
             _uiState.update { it.copy(showSaveDialog = false, pendingResult = null) }

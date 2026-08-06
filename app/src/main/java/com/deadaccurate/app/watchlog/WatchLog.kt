@@ -1,9 +1,12 @@
 package com.deadaccurate.app.watchlog
 
 /**
- * One saved measurement of a watch. [bandScores] is the acoustic signature
- * (fold score of [bph] per analysis band) captured when the result was
- * saved; it is what movement recognition learns from.
+ * One saved measurement of a watch. [bandEnergies] is the acoustic
+ * signature — the folded tick energy per analysis band at [bph] — and
+ * [input] records which input heard it ("wired", "built-in", "replay").
+ * Recognition compares energy *distributions* and only within the same
+ * input, because a piezo and an air microphone hear the same movement
+ * with completely different spectra.
  */
 data class Measurement(
     val timestampMs: Long,
@@ -12,7 +15,8 @@ data class Measurement(
     val beatErrorMs: Float?,
     val amplitudeDeg: Float? = null,
     val mode: String,
-    val bandScores: List<Float>,
+    val bandEnergies: List<Float> = emptyList(),
+    val input: String = "",
 )
 
 /**

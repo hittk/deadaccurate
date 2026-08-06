@@ -315,7 +315,8 @@ class TimegrapherScreenTest {
                             beatErrorMs = 0.7f,
                             amplitudeDeg = 248f,
                             mode = com.deadaccurate.app.settings.AnalysisMode.CORRELATION,
-                            bandScores = listOf(1f, 2f, 3f, 8f),
+                            bandEnergies = listOf(1f, 2f, 3f, 8f),
+                            input = "built-in",
                             guess = com.deadaccurate.app.watchlog.MovementGuesser.Guess(
                                 movementRef = "ST2533",
                                 watchName = "Seagull",
@@ -392,7 +393,7 @@ class TimegrapherScreenTest {
                                 secPerDay = -2.3f,
                                 beatErrorMs = 0.2f,
                                 mode = "CORRELATION",
-                                bandScores = emptyList(),
+                                
                             ),
                             com.deadaccurate.app.watchlog.Measurement(
                                 timestampMs = 1_722_700_000_000,
@@ -400,7 +401,7 @@ class TimegrapherScreenTest {
                                 secPerDay = -2.9f,
                                 beatErrorMs = 0.3f,
                                 mode = "CORRELATION",
-                                bandScores = emptyList(),
+                                
                             ),
                         ),
                     ),
@@ -431,7 +432,7 @@ class TimegrapherScreenTest {
                                 secPerDay = -2.3f,
                                 beatErrorMs = 0.2f,
                                 mode = "CORRELATION",
-                                bandScores = emptyList(),
+                                
                             ),
                         ),
                     ),

@@ -134,9 +134,10 @@ class WatchLogRepository(private val file: File) {
                     m.beatErrorMs?.let { obj.put("beatErrorMs", it.toDouble()) }
                     m.amplitudeDeg?.let { obj.put("amplitudeDeg", it.toDouble()) }
                     obj.put("mode", m.mode)
-                    val scores = JSONArray()
-                    for (s in m.bandScores) scores.put(s.toDouble())
-                    obj.put("bandScores", scores)
+                    obj.put("input", m.input)
+                    val energies = JSONArray()
+                    for (e in m.bandEnergies) energies.put(e.toDouble())
+                    obj.put("bandEnergies", energies)
                     ms.put(obj)
                 }
                 w.put("measurements", ms)
@@ -156,9 +157,13 @@ class WatchLogRepository(private val file: File) {
                 val measurements = ArrayList<Measurement>(ms.length())
                 for (j in 0 until ms.length()) {
                     val m = ms.getJSONObject(j)
-                    val scoresJson = m.optJSONArray("bandScores") ?: JSONArray()
-                    val scores = List(scoresJson.length()) { k ->
-                        scoresJson.getDouble(k).toFloat()
+                    // Pre-0.4.5 logs stored SNR scores under "bandScores";
+                    // those are not comparable to energies and are simply
+                    // not loaded — old readings keep their numbers, they
+                    // just no longer teach the recognizer.
+                    val energiesJson = m.optJSONArray("bandEnergies") ?: JSONArray()
+                    val energies = List(energiesJson.length()) { k ->
+                        energiesJson.getDouble(k).toFloat()
                     }
                     measurements.add(
                         Measurement(
@@ -176,7 +181,8 @@ class WatchLogRepository(private val file: File) {
                                 null
                             },
                             mode = m.optString("mode", ""),
-                            bandScores = scores,
+                            bandEnergies = energies,
+                            input = m.optString("input", ""),
                         ),
                     )
                 }

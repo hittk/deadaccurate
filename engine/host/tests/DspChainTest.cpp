@@ -310,7 +310,7 @@ TEST(DspChain, SignatureFramesReportTheDominantBand) {
         EXPECT_TRUE(frames > 10);
         EXPECT_EQ(last.bph, kBph);
         for (int c = 0; c < deadaccurate::FoldingAnalyzer::kChannels; ++c) {
-            EXPECT_TRUE(last.bandScores[1] >= last.bandScores[c]);
+            EXPECT_TRUE(last.bandEnergies[1] >= last.bandEnergies[c]);
         }
     }
 }

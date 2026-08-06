@@ -27,7 +27,8 @@ class WatchLogRepositoryTest {
         beatErrorMs = 0.4f,
         amplitudeDeg = 271.5f,
         mode = "CORRELATION",
-        bandScores = listOf(1.2f, 3.4f, 7.1f, 2.0f),
+        bandEnergies = listOf(1.2f, 3.4f, 7.1f, 2.0f),
+        input = "wired",
     )
 
     @Test
@@ -60,8 +61,9 @@ class WatchLogRepositoryTest {
         assertEquals(2.8f, entries[0].measurements[0].secPerDay, 1e-6f)
         assertEquals(
             listOf(1.2f, 3.4f, 7.1f, 2.0f),
-            entries[0].measurements[1].bandScores,
+            entries[0].measurements[1].bandEnergies,
         )
+        assertEquals("wired", entries[0].measurements[1].input)
         assertEquals(271.5f, entries[0].measurements[0].amplitudeDeg!!, 1e-4f)
     }
 

@@ -192,6 +192,19 @@ double FoldingAnalyzer::ScoreChannel(int channel, double periodMs) const {
     return best;
 }
 
+double FoldingAnalyzer::EnergyChannel(int channel, double periodMs) const {
+    double best = 0.0;
+    for (const double rel : kScoreRateOffsets) {
+        std::array<double, kScoreSlots> profile{};
+        if (!FoldProfile(channel, periodMs * (1.0 + rel), profile)) {
+            continue;
+        }
+        const ProfileStats stats = Analyze(profile, kDoublePeakMinSlots);
+        best = std::max(best, stats.peakHeight);
+    }
+    return best;
+}
+
 double FoldingAnalyzer::ScoreChannelAt(int channel, double periodMs) const {
     std::array<double, kScoreSlots> profile{};
     if (!FoldProfile(channel, periodMs, profile)) {
@@ -358,8 +371,8 @@ void FoldingAnalyzer::TakeSnapshot() {
     snapshot_.beatCount =
         static_cast<int>(static_cast<double>(profileBins_) * binDurationMs_ / activePeriodMs_);
     for (int c = 0; c < kChannels; ++c) {
-        snapshot_.bandScores[static_cast<size_t>(c)] =
-            static_cast<float>(ScoreChannel(c, activePeriodMs_));
+        snapshot_.bandEnergies[static_cast<size_t>(c)] =
+            static_cast<float>(EnergyChannel(c, activePeriodMs_));
     }
     EstimatePhaseAndRate();
     EstimateBeatError();

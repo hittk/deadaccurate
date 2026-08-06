@@ -60,14 +60,13 @@ public:
         float periodMs;
     };
 
-    // Acoustic signature (~2 Hz once the folding path holds a rate): fold
-    // score of that rate in each analysis band. Different calibres put
-    // their tick energy in different bands, so this is the raw material
-    // for movement recognition. Emitted in both modes — the folding path
-    // always runs.
+    // Acoustic signature (~2 Hz once the folding path holds a rate):
+    // folded tick energy of that rate per analysis band. The energy
+    // distribution across bands is the movement-recognition fingerprint.
+    // Emitted in both modes — the folding path always runs.
     struct SignatureFrame {
         int bph;
-        float bandScores[FoldingAnalyzer::kChannels];
+        float bandEnergies[FoldingAnalyzer::kChannels];
     };
 
     // Balance amplitude from tick sub-pulse timing (edge-path ticks; the

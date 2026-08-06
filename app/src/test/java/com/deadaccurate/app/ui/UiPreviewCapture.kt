@@ -134,7 +134,6 @@ class UiPreviewCapture {
             secPerDay = rate,
             beatErrorMs = be,
             mode = "CORRELATION",
-            bandScores = emptyList(),
         )
         render("watchlog-tablet.png", 2200, 1400) {
             CaptureContent(
@@ -175,7 +174,6 @@ class UiPreviewCapture {
             secPerDay = rate,
             beatErrorMs = be,
             mode = "CORRELATION",
-            bandScores = emptyList(),
         )
         render("watchlog.png", WIDTH_PX, HEIGHT_PX) {
             CaptureContent(

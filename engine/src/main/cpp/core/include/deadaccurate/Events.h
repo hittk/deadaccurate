@@ -24,9 +24,9 @@ enum class EventType : int {
                   // override is active so the UI can flag disagreement.
     kPhase = 5,   // correlation-mode trace feed: v[1]=phaseDeviationMs
                   // (wrapped to ±period/2), v[2]=periodMs
-    kSignature = 6,  // acoustic signature: v[1]=bph, v[2..5]=fold score of
-                     // that rate in each analysis band (movement
-                     // recognition raw material)
+    kSignature = 6,  // acoustic signature: v[1]=bph, v[2..5]=folded tick
+                     // energy of that rate per analysis band (the energy
+                     // distribution is the movement fingerprint)
     kAmplitude = 7,  // v[1]=valid, v[2]=amplitudeDeg, v[3]=liftTimeMs
 };
 

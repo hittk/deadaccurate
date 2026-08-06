@@ -38,12 +38,13 @@ sealed interface EngineEvent {
     data class Phase(val phaseDeviationMs: Float, val periodMs: Float) : EngineEvent
 
     /**
-     * Acoustic signature (~2 Hz once the folding path holds a rate): fold
-     * score of [bph] in each analysis band. Different calibres put their
-     * tick energy in different bands — the raw material for recognizing a
-     * specific movement. Emitted in both analysis modes.
+     * Acoustic signature (~2 Hz once the folding path holds a rate):
+     * folded tick energy of [bph] per analysis band. The energy
+     * *distribution* across bands is the movement fingerprint — energies,
+     * not scores, because a score divides by the noise floor and so
+     * fingerprints the room instead of the calibre.
      */
-    data class Signature(val bph: Int, val bandScores: List<Float>) : EngineEvent
+    data class Signature(val bph: Int, val bandEnergies: List<Float>) : EngineEvent
 
     /**
      * Beat-rate identification and rate-deviation snapshot (~2 Hz plus on
@@ -176,7 +177,7 @@ object EventDecoder {
                 TYPE_SIGNATURE -> events.add(
                     EngineEvent.Signature(
                         bph = buffer[base + 1].toInt(),
-                        bandScores = List(SIGNATURE_BANDS) { buffer[base + 2 + it] },
+                        bandEnergies = List(SIGNATURE_BANDS) { buffer[base + 2 + it] },
                     ),
                 )
                 TYPE_AMPLITUDE -> {

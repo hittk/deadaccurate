@@ -34,11 +34,13 @@ public:
         bool phaseValid = false;
         float phaseDeviationMs = 0.0f;  // wrapped to ±period/2, for the trace
         float periodMs = 0.0f;
-        // Fold score of the active rate in each band — the acoustic
-        // signature used to recognize a specific movement (different
-        // calibres put their tick energy in different bands). All zero
-        // while searching.
-        std::array<float, kChannels> bandScores{};
+        // Folded tick energy of the active rate in each band — the
+        // acoustic signature used to recognize a specific movement.
+        // Energies (profile peak height), not scores: a score divides by
+        // the noise floor, so it fingerprints the room and the coupling;
+        // the energy *distribution* across bands fingerprints the calibre.
+        // All zero while searching.
+        std::array<float, kChannels> bandEnergies{};
     };
 
     explicit FoldingAnalyzer(int sampleRate);
@@ -72,6 +74,8 @@ private:
     // Max over the rate-offset grid for one channel.
     double ScoreChannel(int channel, double periodMs) const;
     double ScoreChannelAt(int channel, double periodMs) const;
+    // Folded tick energy (profile peak height) at the best rate offset.
+    double EnergyChannel(int channel, double periodMs) const;
     // True when folding at twice the period shows a single peak — i.e. the
     // real beat period is 2x and this candidate is a half-period alias.
     bool HalfPeriodAlias(int channel, double periodMs) const;
