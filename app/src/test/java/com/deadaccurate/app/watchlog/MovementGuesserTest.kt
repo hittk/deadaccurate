@@ -55,9 +55,10 @@ class MovementGuesserTest {
     @Test
     fun separatesSameRateCalibresByTimbre() {
         // The second half of each real recording must match its own
-        // movement — and not the other 21,600 calibre.
+        // movement — and not the other 21,600 calibre. NH labels predict
+        // as their family.
         assertEquals(
-            "NH34",
+            "Seiko NH3x",
             MovementGuesser.guess(21600, "built-in", nh34B, phoneRefs)?.movementRef,
         )
         assertEquals(
@@ -93,12 +94,31 @@ class MovementGuesserTest {
 
     @Test
     fun ambiguousRunnerUpSuppressesTheGuess() {
-        // Two labels taught the *same* distribution: neither can win.
+        // Two unrelated labels taught the *same* distribution: neither
+        // can win.
         val refs = listOf(
-            watch("A", "NH35", 21600, "built-in", nh34A),
-            watch("B", "NH34", 21600, "built-in", nh34A),
+            watch("A", "PT5000", 21600, "built-in", nh34A),
+            watch("B", "ST1612", 21600, "built-in", nh34A),
         )
         assertNull(MovementGuesser.guess(21600, "built-in", nh34B, refs))
+    }
+
+    @Test
+    fun nhFamilyLabelsPoolIntoOnePrediction() {
+        // An NH34-labeled watch and an NH35-labeled watch: separately they
+        // would tie and suppress each other; as a family they predict.
+        val refs = listOf(
+            watch("Blizzard", "NH34", 21600, "built-in", nh34A),
+            watch("SKX", "nh35", 21600, "built-in", nh34B),
+        )
+        val guess = MovementGuesser.guess(21600, "built-in", nh34A, refs)
+        assertEquals("Seiko NH3x", guess?.movementRef)
+        // 4R3x is the same base movement under Seiko branding.
+        assertEquals("Seiko NH3x", MovementGuesser.familyOf("4R36"))
+        // Saving the family name back as a label keeps it in the family.
+        assertEquals("Seiko NH3x", MovementGuesser.familyOf("Seiko NH3x"))
+        // Unrelated labels pass through untouched.
+        assertEquals("ST2533", MovementGuesser.familyOf("ST2533"))
     }
 
     @Test

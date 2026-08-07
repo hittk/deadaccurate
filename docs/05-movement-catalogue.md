@@ -61,7 +61,10 @@ signature *worse* (BC 0.87-0.91) than the NH34 matched the ST2533 within
 one input (0.93-0.95), while same-movement halves agree at >= 0.993.
 Pre-0.4.5 saves carried score-based signatures and no longer teach the
 recognizer — a couple of fresh labeled saves per watch per input rebuild
-its knowledge. The log lives on-device in `watch_log.json`.
+its knowledge. Near-identical calibre families predict under one name:
+NH3x and 4R3x labels pool into "Seiko NH3x" (same base movement,
+acoustically indistinguishable — separate labels would tie and suppress
+each other). The log lives on-device in `watch_log.json`.
 
 ## Intake procedure
 

@@ -29,6 +29,25 @@ object MovementGuesser {
         val confidence: Float,
     )
 
+    // Near-identical calibre families predict as one name: an NH34 and an
+    // NH35 are the same base movement with different complications and are
+    // acoustically indistinguishable — labeled separately they would sit
+    // so close that the ambiguity rule suppressed BOTH. Pooling them makes
+    // one stronger reference and an honest prediction ("Seiko NH3x").
+    // Seiko's 4R3x movements are the same family under other branding.
+    private val FAMILIES = listOf(
+        Regex(
+            "^(?:SEIKO\\s*)?(?:NH3[0-9X]\\w*|4R3\\d\\w*)$",
+            RegexOption.IGNORE_CASE,
+        ) to "Seiko NH3x",
+    )
+
+    /** Family name a label predicts under; the label itself if unknown. */
+    fun familyOf(ref: String): String {
+        val trimmed = ref.trim()
+        return FAMILIES.firstOrNull { it.first.matches(trimmed) }?.second ?: trimmed
+    }
+
     fun guess(
         bph: Int,
         input: String,
@@ -50,7 +69,7 @@ object MovementGuesser {
         return if (confident) best else null
     }
 
-    /** movementRef -> (a watch name, saved distributions) for same bph+input. */
+    /** family name -> (a watch name, saved distributions) for same bph+input. */
     private fun references(
         bph: Int,
         input: String,
@@ -58,7 +77,7 @@ object MovementGuesser {
     ): Map<String, Pair<String, List<List<Float>>>> {
         val byRef = LinkedHashMap<String, Pair<String, MutableList<List<Float>>>>()
         for (watch in watches) {
-            val ref = watch.movementRef ?: continue
+            val ref = watch.movementRef?.let(::familyOf) ?: continue
             for (m in watch.measurements) {
                 val usable = m.bph == bph && m.input == input && m.bandEnergies.isNotEmpty()
                 if (usable) {
